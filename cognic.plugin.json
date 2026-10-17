@@ -83,7 +83,9 @@
       },
       "profile": "standard",
       "resources": [
-        "docs/tags/README.md"
+        "docs/tags/README.md",
+        "docs/drift-report.md",
+        "docs/fairness-report.md"
       ],
       "scripts": [],
       "requiredTools": [
@@ -156,7 +158,10 @@
         ]
       },
       "profile": "standard",
-      "resources": [],
+      "resources": [
+        "docs/drift-report.md",
+        "docs/fairness-report.md"
+      ],
       "scripts": [],
       "requiredTools": [
         "list_tags",

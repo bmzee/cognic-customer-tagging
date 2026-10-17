@@ -11,7 +11,7 @@ This skill is for the bank's taxonomy owner and reviewers. It reads the taxonomy
 
 - `list_tags`: every tag's rule, the data it reads, its polarity (benefit, burden or neutral), its limitations, and the review date on its card.
 - `tag_summary`: for each tag, how many customers hold it, are suppressed for it, or cannot be evaluated for it, and the share holding it.
-- The tag cards in `docs/tags/`, and the drift and fairness reports in `docs/`, when they are provided as resources.
+- The tag cards (`docs/tags/README.md` lists them with their review dates), the drift report (`docs/drift-report.md`, prevalence over recorded runs against a frozen baseline) and the fairness report (`docs/fairness-report.md`, results on synthetic attributes only).
 
 ## Review checklist
 
