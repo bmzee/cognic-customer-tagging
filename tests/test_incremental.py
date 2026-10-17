@@ -65,6 +65,8 @@ class Stream(object):
                     "account_open_date": opened.isoformat(), "home_country": "FR", "home_currency": "USD"}, version=1)
             if c == 2:
                 self._add("account.closed", day(span - 12), cid, {})
+            if c == 3:  # an objection to profiling mid-stream: the store forgets the customer for good
+                self._add("customer.updated", day(40), cid, {"profiling_opt_out": "true"}, version=2)
         tick_day = start - datetime.timedelta(days=1)
         while tick_day <= END:
             self._add("clock.tick", tick_day, None, {})
@@ -259,6 +261,7 @@ class IncrementalEqualsBatch(unittest.TestCase):
         stream = Stream(1)
         kinds = {raw["type"] for raw in stream.unique()}
         self.assertEqual(kinds, set(ev.TYPES))
+        self.assertTrue(any(raw["data"].get("profiling_opt_out") for raw in stream.unique()), "an opt-out")
         batches = deliveries(stream, 1)
         flat = [raw["id"] for batch in batches for raw in batch]
         self.assertGreater(len(flat), len(set(flat)), "some events must arrive twice")

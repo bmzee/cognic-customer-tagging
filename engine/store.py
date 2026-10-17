@@ -43,6 +43,7 @@ EXPORT_TABLES = OrderedDict([
     ("tag_history", "customer_id, checkpoint, tag_id"),
     ("events_seen", "event_id"),
     ("rejected_events", "event_id"),
+    ("opt_outs", "customer_id"),
     ("late_events", "event_id"),
     ("feed_checkpoints", "feed"),
     ("runs", "run_id"),

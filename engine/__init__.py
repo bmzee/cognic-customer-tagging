@@ -54,8 +54,11 @@ def run(customers_path, transactions_path, taxonomy=None, as_of=None, lifecycle=
     evidence="held" explains only the tags that hold, which is faster."""
     if taxonomy is None or isinstance(taxonomy, str):
         taxonomy = load_taxonomy(taxonomy or DEFAULT_TAXONOMY)
-    customers, customer_notes = load_customers(customers_path, taxonomy.base_currency)
-    txns, as_of, run_notes, per_customer = load_transactions(transactions_path, customers, taxonomy, as_of)
+    customers, customer_notes = load_customers(customers_path, taxonomy.base_currency, keep_opted_out=True)
+    excluded = {cid for cid, c in customers.items() if c.opted_out}
+    customers = OrderedDict((cid, c) for cid, c in customers.items() if not c.opted_out)
+    txns, as_of, run_notes, per_customer = load_transactions(transactions_path, customers, taxonomy, as_of,
+                                                             excluded=excluded)
     results = OrderedDict()
     lifecycles = OrderedDict()
     for cid in customers:

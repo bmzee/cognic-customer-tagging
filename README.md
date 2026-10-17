@@ -41,6 +41,7 @@ A tag whose rule needs a missing field, such as an account opening date or a bal
 | `evals/scenarios.json`, `evals/README.md` | 54 evaluation scenarios (staff question, expected tool calls, facts the answer must contain, phrases it must not, refusals) and their format |
 | `tools/fairness.py`, `.github/workflows/fairness.yml`, `docs/fairness-report.md` | The fairness kit on synthetic attributes (tests and a report only, never in the engine or the reader), its full-size CI run, and the report |
 | `tools/drift.py`, `docs/drift-report.md` | Tag-prevalence drift from the runs a store records, and an example report |
+| `docs/governance/` | Templates for the bank's compliance team: a DPIA-style assessment, customer rights (with the opt-out the builder honours), retention, the audit trail and taxonomy change control |
 | `tools/bench.py`, `.github/workflows/benchmark.yml` | Scale benchmarks: a dense synthetic generator, rebuild time and continuous-update latency (large runs in CI only) |
 | `data/generate.py` | Seeded synthetic data generator |
 | `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled scenarios' expected tags |
@@ -139,6 +140,7 @@ CI runs the same command on Python 3.9 to 3.13 on every push and pull request (`
 | `tag_state` | Held tags with reason, rule, evidence and `entered_on`; suppressed tags; not-evaluated tags with the missing fields |
 | `checkpoint_tags`, `tag_history` | Tags held at each month-end checkpoint, and the entered and exited events between them |
 | `runs` | One row per builder run: as-of date, versions, taxonomy hash, input snapshot hash, counts, start and finish |
+| `opt_outs` | Customers who objected to profiling: only the id and the earliest date of the objection |
 | `run_tags`, `run_spread` | For every rebuild and every tick that moves the as-of date: per tag, how many customers hold it, are suppressed for it or cannot be evaluated for it, and how many tags each customer holds (counts only; read by the drift report) |
 
 **Retention.** The store keeps `history_months` (13) plus `lifecycle_months` (6) calendar months back from the as-of month. `history_months` covers the longest rule window, and the extra months let the oldest month-end checkpoint see a full window, so the store's history equals a batch run's. Nothing older is kept: tags need nothing older, and data minimisation forbids keeping it.
@@ -191,7 +193,9 @@ In production the bank's store is mounted read-only at `/data/profile.db` over t
 
 ## Data contract
 
-`customers.csv` needs `customer_id`. The engine also reads `account_open_date` for tenure rules, `home_country` for "abroad" rules and `home_currency`, which defaults to the base currency. It reads no other column. Names, account numbers and any protected-trait column are ignored and never loaded.
+`customers.csv` needs `customer_id`. The engine also reads `account_open_date` for tenure rules, `home_country` for "abroad" rules, `home_currency`, which defaults to the base currency, and the optional `profiling_opt_out`. It reads no other column. Names, account numbers and any protected-trait column are ignored and never loaded.
+
+**Opt-out.** A customer whose `profiling_opt_out` is set (anything but empty, `false`, `no`, `n` or `0`; when in doubt the plugin stops profiling) is never tagged. In a change feed the same flag in a `customer.updated` event is an objection: the builder deletes everything it holds about the customer at once, whatever the event's date, keeps only the id and the date in `opt_outs`, and drops the customer's later events. The reader then has no profile for them. See `docs/governance/customer-rights.md`.
 
 `transactions.csv` needs `customer_id`, `posted_date` and `amount`. It may also have `txn_id`, `currency`, `direction`, `channel`, `category`, `counterparty`, `txn_country`, `mcc` (a four-digit merchant category code) and `balance_after` (the balance after the transaction, in the home currency).
 
@@ -310,6 +314,10 @@ All three are instructions only: they reach data through the reader's read-only 
 - **Evaluation scenarios** (`evals/scenarios.json`, format in `evals/README.md`). 54 staff questions: explaining a customer's tags, "why not", segments, tag meanings, review numbers, history, and 13 refusals (protected traits, ranking by a proxy, credit, pricing, AML, collections, and changing or deleting data). Each lists the tool calls expected with exact arguments, the facts the answer must contain and the phrases it must not. `tests/test_evals.py` checks every call against the tool's input schema and every fact against what the reader returns for the synthetic fixture store, so no scenario expects something the tools do not say. Grading an assistant's answers is left to Cognic's runner.
 - **Fairness kit** (`tools/fairness.py`). Tests and a report only: neither the engine nor the reader imports it, and the engine is never given the attributes. The kit generates synthetic customers and, in a separate file, synthetic stand-in attributes, tags the customers with the engine, and joins the two itself. Three scenarios: *null* (attributes independent of behaviour: no tag may fail), *planted-proxy* (attributes decide the foreign country of transactions, the restricted category and payee of a monthly payment, and protected columns in the customer file: the engine's output must be identical to the null scenario's) and *canary* (test-only tags reading a behaviour planted to follow an attribute: a strong and a subtle canary must fail, a near miss must not). Per tag and attribute it reports group rates, the four-fifths impact ratio with its interval, Bonferroni-corrected tests (Fisher's exact test for small cells), Cramer's V and the uncertainty coefficient, and the chance level from shuffled attributes. `tests/test_fairness.py` runs it small; `.github/workflows/fairness.yml` runs it at 383,600 customers, enough for every tag to reach 350 tagged customers in the smallest group, and fails on the gate. The report is `docs/fairness-report.md`.
 - **Drift** (`tools/drift.py`). The builder records, with every rebuild and every tick that moves the as-of date, how many customers hold, are suppressed for or cannot be evaluated for each tag, and how many tags each customer holds (migration 0003; counts only). The drift report compares each run with a frozen baseline (the first three runs after a taxonomy change): WARN at a 25% relative change of at least 1 point, ALERT at 50% and 2 points, both needing p below 0.01; a tag falling to zero, a 20% population change and the spread's stability index also alert. It reads several stores, since a rebuilt store keeps only its latest run. `docs/drift-report.md` is an example from the synthetic data followed month by month.
+
+## Governance
+
+`docs/governance/` holds generic, jurisdiction-neutral templates, each marked "to be completed by the bank's compliance team": a DPIA-style assessment (screening against the high-risk criteria, purpose, profiling mode and risk class, data, necessity, risks and mitigations, sign-off), customer rights (explanation, objection and the opt-out the builder honours, access and correction), retention, the audit trail (the `runs` table and the store export) and taxonomy change control (version bump, content hash, changelog, reviewer, tag cards, fairness run). They describe what the plugin does and leave every decision that belongs to the bank blank; a test keeps them free of any named law or regulator.
 
 ## Cognic safety file
 

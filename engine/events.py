@@ -24,7 +24,11 @@ Types and their data:
     transaction.reversed   {"txn_id": ...}: the transaction no longer counts.
     customer.updated       a full after-image of the attributes rules read:
                            account_open_date, home_country, home_currency.
-                           It takes effect from the event's time.
+                           It takes effect from the event's time. With
+                           profiling_opt_out set (see policy.opted_out) it is
+                           an objection to profiling: the store forgets the
+                           customer and drops their later events, whatever
+                           the event's date; nothing else is needed.
     account.closed         {}: the customer has no tags from the event's time.
     clock.tick             {}: the day given by time is complete; the store's
                            as-of date moves to it. An older tick changes nothing.
@@ -46,6 +50,7 @@ import json
 from collections import OrderedDict
 
 from . import data as data_module
+from . import policy
 
 SCHEMA = "customer-tagging.event/1"
 TYPES = ("transaction.posted", "transaction.corrected", "transaction.reversed", "customer.updated",
@@ -58,7 +63,7 @@ DATA_KEYS = {
     "transaction.posted": set(TXN_KEYS),
     "transaction.corrected": set(TXN_KEYS) | {"posted_date"},
     "transaction.reversed": {"txn_id"},
-    "customer.updated": set(CUSTOMER_KEYS),
+    "customer.updated": set(CUSTOMER_KEYS) | {"profiling_opt_out"},
     "account.closed": set(),
     "clock.tick": set(),
 }
@@ -158,7 +163,7 @@ def parse(raw):
     if unknown:
         raise EventError("unknown_data_keys", ", ".join(unknown))
     missing = sorted(REQUIRED_DATA[kind] - set(payload))
-    if missing:
+    if missing and not (kind == "customer.updated" and policy.opted_out(payload.get("profiling_opt_out"))):
         raise EventError("missing_data_keys", ", ".join(missing))
     for key, value in payload.items():
         if value is not None and not isinstance(value, str):
@@ -202,6 +207,11 @@ def transaction_of(event, taxonomy, posted_date=None):
     return txn
 
 
+def is_opt_out(event):
+    """Is this event a customer's objection to profiling?"""
+    return event.type == "customer.updated" and policy.opted_out(event.data.get("profiling_opt_out"))
+
+
 def customer_of(event, base_currency):
     """The attributes in a customer.updated event, as a Customer."""
     row = {"customer_id": event.customer_id}
@@ -228,9 +238,13 @@ def csv_events(customers_path, transactions_path, taxonomy, as_of=None, sink=Non
     [(event_id, customer_id, reason)]) and "notes" (file-level notes)."""
     sink = sink if sink is not None else {}
     sink.setdefault("rejected", [])
-    customers, customer_notes = data_module.load_customers(customers_path, taxonomy.base_currency)
+    customers, customer_notes = data_module.load_customers(customers_path, taxonomy.base_currency,
+                                                           keep_opted_out=True)
     ignored = []
     for cid, customer in customers.items():
+        if customer.opted_out:  # only the objection: none of their attributes
+            yield make("csv-customer-" + cid, "customer.updated", EPOCH, cid, {"profiling_opt_out": "true"})
+            continue
         yield make("csv-customer-" + cid, "customer.updated", EPOCH, cid, OrderedDict([
             ("account_open_date", customer.account_open_date.isoformat() if customer.account_open_date else ""),
             ("home_country", customer.home_country or ""),
@@ -245,8 +259,9 @@ def csv_events(customers_path, transactions_path, taxonomy, as_of=None, sink=Non
         rows_read += 1
         cid = row.get("customer_id", "")
         customer = customers.get(cid)
-        if customer is None:
-            skipped["unknown_customer"] = skipped.get("unknown_customer", 0) + 1
+        if customer is None or customer.opted_out:
+            reason = "opted_out" if customer is not None else "unknown_customer"
+            skipped[reason] = skipped.get(reason, 0) + 1
             continue
         event_id = "csv-line-{:07d}".format(line)
         posted = data_module.parse_date(row.get("posted_date", ""))
