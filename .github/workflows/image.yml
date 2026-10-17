@@ -1,0 +1,55 @@
+name: image
+
+# Builds the reader's image (only ever in CI), checks that two builds of the
+# same commit give the same digest, compares it with the digest pinned in
+# cognic.plugin.json, and smoke-tests the server inside the image with no
+# network and a read-only root.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_DATE_EPOCH: "1788220800"  # 2026-09-01T00:00:00Z: must be in the past, or BuildKit cannot clamp file times
+  IMAGE: customer-tagging-profiles:ci
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Set up a BuildKit builder
+        run: docker buildx create --name reproducible --driver docker-container --use
+      - name: Build twice and compare digests
+        run: |
+          for n in a b; do
+            docker buildx build --builder reproducible --no-cache \
+              --build-arg SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
+              --output "type=oci,dest=$RUNNER_TEMP/image-$n.tar,rewrite-timestamp=true" \
+              --file Containerfile .
+          done
+          python tools/image_digest.py "$RUNNER_TEMP/image-a.tar" "$RUNNER_TEMP/image-b.tar" --check cognic.plugin.json
+      - name: Load the image
+        run: |
+          docker buildx build --builder reproducible --load \
+            --build-arg SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" --tag "$IMAGE" --file Containerfile .
+          docker image inspect "$IMAGE" --format 'image id {{.Id}}, user {{.Config.User}}, entrypoint {{.Config.Entrypoint}} {{.Config.Cmd}}'
+      - name: Smoke test inside the image (no network, read-only root, no capabilities)
+        run: |
+          python tools/smoke.py -- docker run --rm -i --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges "$IMAGE"
+      - name: The image cannot write its store
+        run: |
+          if docker run --rm --network none --read-only --entrypoint python3 "$IMAGE" -c \
+              "import sqlite3; sqlite3.connect('/data/profile.db').execute('DELETE FROM meta')"; then
+            echo "the store was writable"; exit 1
+          fi
+          echo "write refused, as it must be"

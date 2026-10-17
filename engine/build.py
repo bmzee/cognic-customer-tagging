@@ -36,7 +36,12 @@ from . import store as store_module
 
 
 def utc_now():
-    """Wall-clock time for the runs table only; never used in a calculation."""
+    """Wall-clock time for the runs table only; never used in a calculation.
+    SOURCE_DATE_EPOCH, when set, fixes it, so a store built into an image is
+    byte-for-byte reproducible."""
+    fixed = os.environ.get("SOURCE_DATE_EPOCH")
+    if fixed and fixed.isdigit():
+        return datetime.datetime.fromtimestamp(int(fixed), datetime.timezone.utc).isoformat()
     return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
 
 

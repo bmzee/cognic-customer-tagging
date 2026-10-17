@@ -1,0 +1,10 @@
+# Only what the Containerfile copies.
+*
+!engine/
+!server/
+!taxonomy/
+!bin/profile-reader
+!data/customers.csv
+!data/transactions.csv
+**/__pycache__
+**/*.pyc
