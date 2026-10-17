@@ -16,7 +16,7 @@ ARG BASE=python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df2
 
 # Stage 1: compile the synthetic fixture store from the repository's data.
 FROM ${BASE} AS fixture
-ARG SOURCE_DATE_EPOCH=1792540800
+ARG SOURCE_DATE_EPOCH=1788220800
 ENV PYTHONDONTWRITEBYTECODE=1 SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
 WORKDIR /build
 COPY engine/ engine/

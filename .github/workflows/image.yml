@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 env:
-  SOURCE_DATE_EPOCH: "1792540800"
+  SOURCE_DATE_EPOCH: "1788220800"  # 2026-09-01T00:00:00Z: must be in the past, or BuildKit cannot clamp file times
   IMAGE: customer-tagging-profiles:ci
 
 jobs:
