@@ -1,0 +1,8 @@
+{
+  "name": "customer-tagging",
+  "version": "0.1.0",
+  "description": "Tag customers from their transaction behaviour with explainable, rule-based tags, and explain any customer's tags in plain words with the rule and evidence behind each one. Read-only.",
+  "author": {
+    "name": "bmzee"
+  }
+}
