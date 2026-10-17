@@ -36,7 +36,8 @@ A tag whose rule needs a missing field, such as an account opening date, is repo
 | `tools/validate_safety_file.py` | Standard-library validator for the safety file |
 | `.github/workflows/tests.yml` | CI: runs the tests on Python 3.9 to 3.13 |
 | `docs/STATUS.md`, `docs/OPEN-QUESTIONS.md` | Build status per phase, and the questions only Cognic's hosting can settle |
-| `DESIGN.md` | Stages 2 and 3, and the compliance review |
+| `DESIGN.md` | Target architecture: builder, profile store, reader tool server, skills and agent; why incremental equals batch; decisions from the research |
+| `docs/research/` | Research notes on eight topics, each ending with what we adopt and reject, and `SOURCES.md` |
 
 ## Running it
 

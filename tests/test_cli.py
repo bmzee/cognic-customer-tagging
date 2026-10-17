@@ -167,7 +167,7 @@ class StaticGuarantees(unittest.TestCase):
         pattern = re.compile(r"\b(" + "|".join(families) + r")\b", re.IGNORECASE)
         allowed = re.compile(r"\.cl" + r"aude-plugin")
         paths = []
-        for folder in ("engine", "taxonomy", "skills", "commands", "tools", "tests", ".github", ".cl" + "aude-plugin"):
+        for folder in ("engine", "taxonomy", "skills", "commands", "tools", "tests", "docs", ".github", ".cl" + "aude-plugin"):
             for base, _, files in os.walk(os.path.join(ROOT, folder)):
                 paths.extend(os.path.join(base, f) for f in files if not f.endswith(".pyc"))
         paths += [os.path.join(ROOT, "data", "generate.py"), os.path.join(ROOT, "cognic.plugin.json")]
