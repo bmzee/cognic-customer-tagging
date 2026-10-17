@@ -60,13 +60,14 @@ _DEBIT = {"debit", "dr", "d"}
 
 
 class Customer(object):
-    __slots__ = ("customer_id", "account_open_date", "home_country", "home_currency")
+    __slots__ = ("customer_id", "account_open_date", "home_country", "home_currency", "opted_out")
 
-    def __init__(self, customer_id, account_open_date, home_country, home_currency):
+    def __init__(self, customer_id, account_open_date, home_country, home_currency, opted_out=False):
         self.customer_id = customer_id
         self.account_open_date = account_open_date
         self.home_country = home_country
         self.home_currency = home_currency
+        self.opted_out = opted_out
 
     def as_dict(self):
         return OrderedDict([
@@ -181,14 +182,20 @@ def customer_from_row(row, base_currency):
     problem = "bad_account_open_date" if open_text and open_date is None else None
     country = (row.get("home_country", "") or "").upper() or None
     currency = (row.get("home_currency", "") or "").upper() or base_currency
-    return Customer(row["customer_id"], open_date, country, currency), problem
+    opted_out = policy.opted_out(row.get("profiling_opt_out"))
+    return Customer(row["customer_id"], open_date, country, currency, opted_out), problem
 
 
-def load_customers(path, base_currency):
-    """Return (customers by id, notes). Only policy.CUSTOMER_COLUMNS are read."""
+def load_customers(path, base_currency, keep_opted_out=False):
+    """Return (customers by id, notes). Only policy.CUSTOMER_COLUMNS are read.
+
+    Customers who opted out of profiling are left out (and counted), unless
+    keep_opted_out is set: the CSV-to-events conversion needs them, to tell
+    the store to forget them."""
     rows, ignored = _read_rows(path, policy.CUSTOMER_COLUMNS, ("customer_id",))
     customers = OrderedDict()
     problems = Counter()
+    opted = 0
     for row in rows:
         cid = row.get("customer_id", "")
         if not cid:
@@ -198,13 +205,19 @@ def load_customers(path, base_currency):
             problems["duplicate_customer_id"] += 1
             continue
         customer, problem = customer_from_row(row, base_currency)
+        if customer.opted_out:
+            opted += 1
+            if not keep_opted_out:
+                customers[cid] = None
+                continue
         if problem:
             problems[problem] += 1
         customers[cid] = customer
-    ordered = OrderedDict((cid, customers[cid]) for cid in sorted(customers))
+    ordered = OrderedDict((cid, customers[cid]) for cid in sorted(customers) if customers[cid] is not None)
     notes = {
         "customers_read": len(rows),
-        "customers_used": len(ordered),
+        "customers_used": len([c for c in ordered.values() if not c.opted_out]),
+        "opted_out": opted,
         "problems": dict(sorted(problems.items())),
         "ignored_columns": ignored,
     }
@@ -299,8 +312,9 @@ def normalise_transaction(row, customer, taxonomy):
     return txn, None, defaulted
 
 
-def load_transactions(path, customers, taxonomy, as_of=None):
-    """Read, normalise and window transactions.
+def load_transactions(path, customers, taxonomy, as_of=None, excluded=()):
+    """Read, normalise and window transactions. Rows of customers in excluded
+    (those who opted out of profiling) are skipped and counted, never read further.
 
     Returns (transactions by customer id, as_of date, run notes, per-customer notes).
     When as_of is None it defaults to the latest valid posted_date in the file,
@@ -317,7 +331,7 @@ def load_transactions(path, customers, taxonomy, as_of=None):
         cid = row.get("customer_id", "")
         customer = customers.get(cid)
         if customer is None:
-            run_skips["unknown_customer"] += 1
+            run_skips["opted_out" if cid in excluded else "unknown_customer"] += 1
             continue
         txn, reason, defaulted = normalise_transaction(row, customer, taxonomy)
         if txn is None:

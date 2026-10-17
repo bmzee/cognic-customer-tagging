@@ -52,7 +52,12 @@ DEFAULT_LATENESS_DAYS = 3
 # part of the profile.
 STATE_TABLES = ("meta", "schema_migrations", "customers", "customer_versions", "closures", "txn_registers",
                 "ledger", "features", "feature_buckets", "tag_state", "checkpoint_tags", "tag_history",
-                "events_seen", "rejected_events")
+                "events_seen", "rejected_events", "opt_outs")
+
+# Every table that can hold something about a customer: an opt-out empties
+# them all for that customer (opt_outs itself keeps only the id and date).
+CUSTOMER_TABLES = ("customers", "customer_versions", "closures", "txn_registers", "ledger", "feature_buckets",
+                   "tag_state", "checkpoint_tags", "tag_history", "events_seen", "rejected_events", "late_events")
 
 
 def beats(a, b):
@@ -122,7 +127,8 @@ CREATE TEMP TABLE stage_images (customer_id TEXT, txn_id TEXT, version INTEGER, 
     balance_cents INTEGER);
 CREATE TEMP TABLE stage_versions (customer_id TEXT, effective_from TEXT, version INTEGER, event_id TEXT,
     account_open_date TEXT, home_country TEXT, home_currency TEXT);
-CREATE TEMP TABLE stage_closures (customer_id TEXT, closed_on TEXT)
+CREATE TEMP TABLE stage_closures (customer_id TEXT, closed_on TEXT);
+CREATE TEMP TABLE stage_opt_outs (customer_id TEXT, since TEXT)
 """
 _CHUNK = 5000
 
@@ -156,6 +162,7 @@ def rebuild_from_events(raw_events, store_path, taxonomy=None, as_of=None, pre_r
         for event_id, customer_id, reason in pre_rejected:
             connection.execute("INSERT OR IGNORE INTO rejected_events (event_id, customer_id, time, reason) "
                                "VALUES (?, ?, NULL, ?)", (event_id, customer_id, reason))
+        opted_out = _forget_opted_out(connection)
         conflict = connection.execute("SELECT event_id FROM stage_events GROUP BY event_id "
                                       "HAVING COUNT(DISTINCT digest) > 1 LIMIT 1").fetchone()
         if conflict:
@@ -170,7 +177,7 @@ def rebuild_from_events(raw_events, store_path, taxonomy=None, as_of=None, pre_r
         customers = [row[0] for row in connection.execute(
             "SELECT customer_id FROM stage_images UNION SELECT customer_id FROM stage_versions "
             "UNION SELECT customer_id FROM stage_closures ORDER BY 1")]
-        for table in ("stage_events", "stage_images", "stage_versions", "stage_closures"):
+        for table in ("stage_events", "stage_images", "stage_versions", "stage_closures", "stage_opt_outs"):
             connection.execute("DROP TABLE {}".format(table))
         held = 0
         for cid in customers:
@@ -183,7 +190,8 @@ def rebuild_from_events(raw_events, store_path, taxonomy=None, as_of=None, pre_r
             "customers, transactions, tags_held, notes, started_at, finished_at, events_read, events_applied, "
             "events_rejected) VALUES ('rebuild', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (_iso(as_of) or "", ENGINE_VERSION, taxonomy.version, taxonomy.content_hash, snapshot, len(customers),
-             txn_count, held, store_module.canonical(notes or {}), started, clock(), read, applied, rejected))
+             txn_count, held, store_module.canonical(dict(notes or {}, opted_out=opted_out)), started, clock(), read,
+             applied, rejected))
         profile.write_prevalence(connection, connection.execute("SELECT last_insert_rowid()").fetchone()[0], taxonomy)
         profile.write_meta(connection, [("state", store_module.STATE_READY)])
         connection.execute("COMMIT")
@@ -203,12 +211,13 @@ def rebuild_from_events(raw_events, store_path, taxonomy=None, as_of=None, pre_r
 
 def _stage(connection, raw_events, taxonomy):
     """Parse every event into the staging tables. Returns (events read, tick dates)."""
-    buffers = {"events": [], "images": [], "versions": [], "closures": [], "rejected": []}
+    buffers = {"events": [], "images": [], "versions": [], "closures": [], "opt_outs": [], "rejected": []}
     sql = {
         "events": "INSERT INTO stage_events VALUES (?, ?, ?, ?, ?)",
         "images": "INSERT INTO stage_images VALUES ({})".format(", ".join("?" * 17)),
         "versions": "INSERT INTO stage_versions VALUES (?, ?, ?, ?, ?, ?, ?)",
         "closures": "INSERT INTO stage_closures VALUES (?, ?)",
+        "opt_outs": "INSERT INTO stage_opt_outs VALUES (?, ?)",
         "rejected": "INSERT OR IGNORE INTO rejected_events (event_id, customer_id, time, reason) VALUES (?, ?, ?, ?)",
     }
 
@@ -237,6 +246,8 @@ def _stage(connection, raw_events, taxonomy):
             elif event.type == "transaction.reversed":
                 buffers["images"].append((cid, event.data["txn_id"], event.version, RANK["reversed"], event.id,
                                           _iso(event.day)) + (None,) * 11)
+            elif events_module.is_opt_out(event):
+                buffers["opt_outs"].append((cid, _iso(event.day)))
             elif event.type == "customer.updated":
                 customer = events_module.customer_of(event, taxonomy.base_currency)
                 buffers["versions"].append((cid, _iso(event.day), event.version, event.id,
@@ -252,6 +263,16 @@ def _stage(connection, raw_events, taxonomy):
     for name in buffers:
         flush(name)
     return read, ticks
+
+
+def _forget_opted_out(connection):
+    """Batch path: record every opt-out (its earliest date) and drop everything
+    staged or rejected for those customers. Returns how many opted out."""
+    connection.execute("INSERT INTO opt_outs (customer_id, since) "
+                       "SELECT customer_id, MIN(since) FROM stage_opt_outs GROUP BY customer_id")
+    for table in ("stage_events", "stage_images", "stage_versions", "stage_closures", "rejected_events"):
+        connection.execute("DELETE FROM {} WHERE customer_id IN (SELECT customer_id FROM opt_outs)".format(table))
+    return connection.execute("SELECT COUNT(*) FROM opt_outs").fetchone()[0]
 
 
 def _resolve(connection):
@@ -366,7 +387,8 @@ class Follower(object):
 
     def apply(self, raw_events, feed=None, position=None, identity=None):
         """Apply a batch of events (dicts or JSON texts). Returns counts."""
-        counts = OrderedDict([("read", 0), ("applied", 0), ("duplicate", 0), ("rejected", 0), ("late", 0)])
+        counts = OrderedDict([("read", 0), ("applied", 0), ("duplicate", 0), ("rejected", 0), ("late", 0),
+                              ("opted_out", 0)])
         started = self.clock()
         connection = self.connection
         as_of_before = self.as_of
@@ -390,7 +412,8 @@ class Follower(object):
                 "VALUES ('follow', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (_iso(self.as_of) or "", ENGINE_VERSION, self.taxonomy.version, self.taxonomy.content_hash,
                  "feed:{}@{}".format(feed, position) if feed else "", customers, txns, held,
-                 store_module.canonical({"feed": feed, "position": str(position) if feed else None}),
+                 store_module.canonical({"feed": feed, "position": str(position) if feed else None,
+                                         "opted_out": counts["opted_out"]}),
                  started, self.clock(), counts["read"], counts["applied"], counts["duplicate"], counts["rejected"],
                  counts["late"]))
             if self.as_of != as_of_before:
@@ -423,6 +446,16 @@ class Follower(object):
             self._record_rejected(_invalid_id(raw), None, None, exc.reason)
             counts["rejected"] += 1
             return
+        # An objection to profiling is honoured whenever it arrives, however late;
+        # afterwards nothing about the customer is stored again.
+        if events_module.is_opt_out(event):
+            self._forget(event.customer_id, event.day, dirty)
+            counts["opted_out"] += 1
+            return
+        if event.customer_id is not None and connection.execute(
+                "SELECT 1 FROM opt_outs WHERE customer_id = ?", (event.customer_id,)).fetchone():
+            counts["opted_out"] += 1
+            return
         seen = connection.execute("SELECT digest FROM events_seen WHERE event_id = ?", (event.id,)).fetchone()
         if seen is not None:
             if seen[0] == event.digest:
@@ -449,6 +482,15 @@ class Follower(object):
             counts["rejected"] += 1
             return
         counts["applied"] += 1
+
+    def _forget(self, cid, day, dirty):
+        connection = self.connection
+        for table in CUSTOMER_TABLES:
+            connection.execute("DELETE FROM {} WHERE customer_id = ?".format(table), (cid,))
+        connection.execute("INSERT OR IGNORE INTO opt_outs (customer_id, since) VALUES (?, ?)", (cid, _iso(day)))
+        connection.execute("UPDATE opt_outs SET since = ? WHERE customer_id = ? AND since > ?",
+                           (_iso(day), cid, _iso(day)))
+        dirty.pop(cid, None)
 
     def _seen(self, event):
         start = self._start()

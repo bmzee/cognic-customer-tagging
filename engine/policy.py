@@ -24,6 +24,9 @@ taxonomy/tags.json, so editing the rules cannot weaken the guard.
   keeps a stable token, never the person's name.
 * The engine reads only the columns listed here. Any other column in the
   input files, including a protected-trait column, is never loaded.
+* A customer who objected to profiling (profiling_opt_out) is excluded
+  completely: never tagged, and nothing about them is kept but the id and
+  the date of the objection.
 """
 
 import re
@@ -70,7 +73,12 @@ CUSTOMER_COLUMNS = (
     "account_open_date",
     "home_country",
     "home_currency",
+    "profiling_opt_out",
 )
+
+# Values of profiling_opt_out that mean "not opted out". Every other non-empty
+# value is an opt-out: when in doubt, the plugin stops profiling.
+NOT_OPTED_OUT = frozenset({"", "false", "no", "n", "0"})
 
 TRANSACTION_COLUMNS = (
     "txn_id",
@@ -158,3 +166,9 @@ def stored_category(category):
     if category and (category in PROXY_CATEGORIES or protected_reason(category)):
         return RESTRICTED_CATEGORY
     return category
+
+
+def opted_out(value):
+    """Does a profiling_opt_out value mean the customer objected? Anything but
+    an empty or clearly negative value does."""
+    return str(value or "").strip().lower() not in NOT_OPTED_OUT
