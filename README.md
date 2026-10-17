@@ -27,14 +27,15 @@ A tag whose rule needs a missing field, such as an account opening date, is repo
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest |
 | `skills/customer-tagging/SKILL.md` | How the agent runs the engine and explains tags, read-only |
 | `commands/tag-customers.md` | Command that loads the skill |
-| `cognic-safety.json` | Draft Cognic safety file |
+| `cognic.plugin.json` | Draft Cognic safety file |
 | `taxonomy/tags.json` | The tags: fields, rules, thresholds, windows and reasons |
 | `engine/` | The rules engine, Python standard library only |
 | `data/generate.py` | Seeded synthetic data generator |
 | `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled subset's expected tags |
 | `tests/` | `unittest` suite; latest results in `tests/RESULTS.md` |
 | `tools/validate_safety_file.py` | Standard-library validator for the safety file |
-| `.github/workflows/tests.yml` | CI: runs the tests on Python 3.9 and 3.12 |
+| `.github/workflows/tests.yml` | CI: runs the tests on Python 3.9 to 3.13 |
+| `docs/STATUS.md`, `docs/OPEN-QUESTIONS.md` | Build status per phase, and the questions only Cognic's hosting can settle |
 | `DESIGN.md` | Stages 2 and 3, and the compliance review |
 
 ## Running it
@@ -79,7 +80,7 @@ Run the tests:
 python3 -m unittest discover -s tests -t .
 ```
 
-CI runs the same command on Python 3.9 and 3.12 on every push and pull request (`.github/workflows/tests.yml`). The draft safety-file schema is not in this repository, so CI skips that one test.
+CI runs the same command on Python 3.9 to 3.13 on every push and pull request (`.github/workflows/tests.yml`). The draft safety-file schema is private and stays out of this repository and its CI, so CI skips that one test; run it locally with `COGNIC_SAFETY_SCHEMA` set (see `docs/OPEN-QUESTIONS.md`, Q1).
 
 ## Data contract
 
@@ -153,7 +154,7 @@ These hold everywhere in the plugin. The engine enforces them in code, in `engin
 
 ## Cognic safety file
 
-`cognic-safety.json` is a draft written against Cognic's draft safety-file schema (`schemaVersion` "1-draft"). It declares:
+`cognic.plugin.json` is a draft written against Cognic's draft safety-file schema (`schemaVersion` "1-draft"). It declares:
 
 - the read effect only, with consent class "none";
 - data classes "confidential" and "sensitive";
@@ -163,9 +164,8 @@ These hold everywhere in the plugin. The engine enforces them in code, in `engin
 Points to settle when plugin hosting lands:
 
 - **Personal data class.** The draft vocabulary has no "personal" data class, so "sensitive" stands for personal data here.
-- **File name.** The hosting design draft names this file `cognic.plugin.json`. The file keeps the name this stage was asked for, and needs renaming when hosting is ready.
 - **Workbench effect.** If the harness counts any workbench script run as a private effect, `effects` becomes ["read", "private"] and the skill moves to the "worker" tier. Nothing else changes.
-- **Placeholder scopes.** The roles and the agent in `scope` are placeholders that must match the bank's real role bindings.
+- **Roles.** Every `scope.roles` is `["employee"]`, a broad role. A bank narrows access later through its own role bindings, and the name must match an actual admin role binding.
 
 **Validation.** No JSON-schema package is installed, so `tools/validate_safety_file.py` is a small standard-library validator. It implements every keyword the draft schema uses and fails on any keyword it does not know. It is not a general JSON Schema implementation. The draft schema is not in this public repository. The safety-file schema test runs only when `COGNIC_SAFETY_SCHEMA` points to it; otherwise it is skipped.
 

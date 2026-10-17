@@ -1,4 +1,4 @@
-"""cognic-safety.json: consistent with the plugin, read-only, and valid against the draft schema.
+"""cognic.plugin.json: consistent with the plugin, read-only, and valid against the draft schema.
 
 The draft schema is not part of this public repository. Set COGNIC_SAFETY_SCHEMA
 to its path to run the full schema validation; otherwise that one test is skipped.
@@ -32,7 +32,7 @@ def frontmatter(path):
 class SafetyFile(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.safety = load_json(os.path.join(ROOT, "cognic-safety.json"))
+        cls.safety = load_json(os.path.join(ROOT, "cognic.plugin.json"))
         with open(os.path.join(ROOT, ".claude-plugin", "plugin.json"), encoding="utf-8") as handle:
             cls.manifest = json.load(handle)
 

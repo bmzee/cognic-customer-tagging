@@ -16,7 +16,7 @@ references, $dynamicRef, unevaluated*, format or vocabularies). The draft
 schema itself is not part of this public repository; pass its path.
 
 Usage:
-    python3 tools/validate_safety_file.py --schema PATH [--instance cognic-safety.json]
+    python3 tools/validate_safety_file.py --schema PATH [--instance cognic.plugin.json]
 """
 
 import argparse
@@ -184,7 +184,7 @@ def load_json(path):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--schema", required=True)
-    parser.add_argument("--instance", default="cognic-safety.json")
+    parser.add_argument("--instance", default="cognic.plugin.json")
     args = parser.parse_args(argv)
     found = Validator(load_json(args.schema)).errors(load_json(args.instance))
     if found:
