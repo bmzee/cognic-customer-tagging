@@ -152,6 +152,28 @@ def _read_rows(path, wanted, required):
     return rows, ignored
 
 
+def iter_rows(path, wanted, required, header_out=None):
+    """Like _read_rows, but yields one row at a time (for files too large to
+    hold in memory). header_out, if given, receives the ignored columns."""
+    with open(path, "r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        header = [h.strip() for h in (reader.fieldnames or [])]
+        missing = [c for c in required if c not in header]
+        if missing:
+            raise DataError("{}: missing required column(s): {}".format(path, ", ".join(missing)))
+        if header_out is not None:
+            header_out.extend(sorted(h for h in header if h and h not in wanted))
+        for raw in reader:
+            row = {}
+            for key, value in raw.items():
+                if key is None:
+                    continue
+                key = key.strip()
+                if key in wanted:
+                    row[key] = (value or "").strip()
+            yield row
+
+
 def customer_from_row(row, base_currency):
     """Return (Customer, problem or None) from a dict of customer columns."""
     open_text = row.get("account_open_date", "") or ""
