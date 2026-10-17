@@ -1,7 +1,16 @@
 {
-  "schema_version": "1",
-  "taxonomy_version": "0.1.0",
-  "description": "Behaviour-based customer tags for the customer-tagging plugin. Each tag is a declarative rule over transaction behaviour with explicit thresholds and time windows, and a reason shown to the user. Thresholds are illustrative starting points; bank policy sets the final values.",
+  "schema_version": "2",
+  "taxonomy_version": "2.0.0",
+  "content_hash": "sha256:1770d33ff53acb32fe9b706a4df4ce1503a685a5b01e1d6435d20d9b4e3a5ed9",
+  "changelog": [
+    {
+      "version": "2.0.0",
+      "content_hash": "sha256:1770d33ff53acb32fe9b706a4df4ce1503a685a5b01e1d6435d20d9b4e3a5ed9",
+      "date": "2026-10-18",
+      "summary": "Schema 2: 54 tags in 10 groups (21 new), polarity and limitations per tag, governance, the lifecycle exclusive group, recurring, days-since and balance metrics, and the counterparty and merchant code tables. Replaces 0.1.0."
+    }
+  ],
+  "description": "Behaviour-based customer tags for the customer-tagging plugin. Each tag is a declarative rule over transaction and balance behaviour with explicit thresholds and time windows, a reason shown to staff, its known limitations and its polarity for fairness testing. Thresholds are illustrative starting points; bank policy sets the final values.",
   "settings": {
     "base_currency": "USD",
     "fx_rates_to_base": {
@@ -12,7 +21,9 @@
       "CAD": "0.73",
       "JPY": "0.0070"
     },
-    "notes": "Fixed illustrative rates for the synthetic data, not market rates. A deployment supplies the bank's own rate table. Amount thresholds are in the base currency."
+    "history_months": 13,
+    "lifecycle_months": 6,
+    "notes": "Fixed illustrative rates for the synthetic data, not market rates. A deployment supplies the bank's own rate table. Amount thresholds are in the base currency. history_months is how many months of transactions the profile keeps; it must cover the longest rule window. lifecycle_months is how many month-end checkpoints of tag history are kept."
   },
   "fairness": {
     "excluded_traits": [
@@ -20,28 +31,112 @@
       "ethnicity",
       "race",
       "caste",
+      "national origin",
       "gender",
       "sex",
+      "sexual orientation",
       "disability",
-      "marital status",
-      "pregnancy"
+      "health",
+      "pregnancy",
+      "family or marital status",
+      "political opinion"
     ],
     "age": "Excluded by default. No tag uses age or date of birth. Adding one needs a tag explicitly marked 'bank policy decides' and an engine change; until then the engine refuses age fields.",
     "proxies_avoided": [
       "health and medical spending (a proxy for disability and health)",
       "charity and worship payments (a proxy for religion)",
       "childcare and school fees (a proxy for family and marital status)",
-      "pension income (a proxy for age)",
-      "customer names (a proxy for gender and ethnicity)"
+      "pension and benefit income by type (a proxy for age, disability, family status or pregnancy)",
+      "a specific country or currency, including a remittance's country or corridor (a proxy for national origin)",
+      "customer names, and the names of people a customer pays (a proxy for gender and ethnicity)"
     ],
-    "notes": "The engine enforces these rules in code (engine/policy.py), so editing this file cannot switch them off. Every tag shows its rule and the evidence that produced it; there are no scores."
+    "notes": "The engine enforces these rules in code (engine/policy.py): restricted categories are collapsed into one opaque category when a transaction is read, person counterparties are pseudonymised, and no rule may select a specific country or currency. Editing this file cannot switch them off. Every tag shows its rule and the evidence that produced it; there are no scores."
   },
+  "governance": {
+    "owner": "The bank's taxonomy owner (to be named by the bank)",
+    "review_date": "2027-04-30",
+    "intended_use": "Service and personalisation by a relationship manager: understanding a customer's behaviour to offer relevant help and products. Tags inform a person; they never act on their own.",
+    "prohibited_uses": [
+      "credit decisions of any kind, including limits and affordability",
+      "pricing, fees or interest rates",
+      "fraud, AML or other financial-crime decisions",
+      "any automated decision with legal or similarly significant effect on the customer",
+      "collections, or targeting sales at customers flagged by financial-stress signals"
+    ],
+    "notes": "Every tag card repeats these uses. A change that would feed credit, pricing, insurance, fraud or AML decisions, add a score or learned model, add an automatic action, or use protected or proxy data changes the plugin's risk class and needs a fresh assessment before it is made."
+  },
+  "groups": [
+    {
+      "id": "income",
+      "name": "Income",
+      "description": "Where money comes from and how steady it is."
+    },
+    {
+      "id": "spending-pattern",
+      "name": "Spending pattern",
+      "description": "What money is spent on and how that changes, never on restricted categories."
+    },
+    {
+      "id": "card-use",
+      "name": "Card use",
+      "description": "How and where cards are used."
+    },
+    {
+      "id": "channel-and-digital",
+      "name": "Channel and digital use",
+      "description": "Which channels the customer uses for self-service banking."
+    },
+    {
+      "id": "travel",
+      "name": "Travel",
+      "description": "Spending abroad and travel bookings; never which country."
+    },
+    {
+      "id": "savings-and-balances",
+      "name": "Savings and balances",
+      "description": "Saving, investing and the balance kept on the account."
+    },
+    {
+      "id": "bills-and-subscriptions",
+      "name": "Bills and subscriptions",
+      "description": "Regular bills, rent, loans, insurance and subscriptions."
+    },
+    {
+      "id": "transfers",
+      "name": "Transfers",
+      "description": "Money sent to and received from other people, at home or abroad."
+    },
+    {
+      "id": "engagement-and-lifecycle",
+      "name": "Engagement and lifecycle",
+      "description": "How new and how active the relationship is."
+    },
+    {
+      "id": "financial-stress",
+      "name": "Financial-stress signals",
+      "description": "Patterns that suggest a customer may welcome support. Worded for service, never for credit, pricing or collections."
+    }
+  ],
+  "exclusive_groups": [
+    {
+      "id": "lifecycle",
+      "description": "One lifecycle stage per customer, checked in this order; the first that holds wins and the others are reported as suppressed.",
+      "priority": [
+        "dormant",
+        "going-dormant",
+        "re-engaged",
+        "new-customer",
+        "active-customer"
+      ]
+    }
+  ],
   "tags": [
     {
       "id": "salary-earner",
       "name": "Salary earner",
       "group": "income",
       "description": "Receives a salary credit every month.",
+      "polarity": "benefit",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -86,13 +181,68 @@
           }
         }
       ],
-      "reason": "salary credited monthly, {salary_months} of last 6 months, about {salary_avg} a month"
+      "reason": "salary credited monthly, {salary_months} of last 6 months, about {salary_avg} a month",
+      "limitations": [
+        "Relies on the bank labelling salary credits; salary paid under another category is missed.",
+        "A salary paid every four weeks can skip a calendar month and miss the tag."
+      ]
+    },
+    {
+      "id": "regular-other-income",
+      "name": "Regular non-salary income",
+      "group": "income",
+      "description": "Receives regular income other than salary from the same business payer.",
+      "polarity": "benefit",
+      "fields": [
+        "transactions.amount",
+        "transactions.category",
+        "transactions.counterparty",
+        "transactions.currency",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "other_streams",
+            "description": "regular income streams from one business payer, other than salary",
+            "metric": "recurring",
+            "filter": {
+              "direction": "credit",
+              "counterparty_kind": [
+                "business"
+              ],
+              "category": {
+                "not_in": [
+                  "salary"
+                ]
+              }
+            },
+            "window": {
+              "months": 6
+            },
+            "period_months": 1,
+            "min_occurrences": 4,
+            "amount_tolerance": 0.2,
+            "amount_floor": 10,
+            "max_missed": 1,
+            "op": ">=",
+            "value": 1
+          }
+        ]
+      },
+      "reason": "regular income other than salary: {other_streams} steady stream(s) from the same payer in the last 6 complete months",
+      "limitations": [
+        "Only business payers in the counterparty table count; income paid by a person is never treated as a stream.",
+        "Never says what the income is; pensions and benefits are restricted and never counted."
+      ]
     },
     {
       "id": "irregular-income",
       "name": "Irregular income",
       "group": "income",
       "description": "Earns income in most months, but the amount swings a lot from month to month and there is no steady salary.",
+      "polarity": "neutral",
       "fields": [
         "customers.account_open_date",
         "transactions.amount",
@@ -164,13 +314,17 @@
           }
         ]
       },
-      "reason": "earned income arrived in {income_months} of last 12 months and was more than 40% above or below its usual month in {uneven_months} of last 12 months; no steady salary"
+      "reason": "earned income arrived in {income_months} of last 12 months and was more than 40% above or below its usual month in {uneven_months} of last 12 months; no steady salary",
+      "limitations": [
+        "Seasonal work that is steady year on year still looks irregular inside one year."
+      ]
     },
     {
       "id": "multi-source-income",
       "name": "Several income sources",
       "group": "income",
       "description": "Received earned income from several different payers recently.",
+      "polarity": "neutral",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -218,13 +372,17 @@
           }
         }
       ],
-      "reason": "earned income from {payers} different payers in the last 90 days, {earned_90} in total"
+      "reason": "earned income from {payers} different payers in the last 90 days, {earned_90} in total",
+      "limitations": [
+        "Counts distinct payers, so one client paying through two payer names counts twice."
+      ]
     },
     {
       "id": "business-income",
       "name": "Business or freelance income",
       "group": "income",
       "description": "Receives business or freelance income in most months.",
+      "polarity": "neutral",
       "fields": [
         "transactions.category",
         "transactions.direction",
@@ -253,13 +411,17 @@
           }
         ]
       },
-      "reason": "business or freelance income received in {business_months} of last 6 months"
+      "reason": "business or freelance income received in {business_months} of last 6 months",
+      "limitations": [
+        "Depends on the bank's business-income category; informal income paid as transfers is missed."
+      ]
     },
     {
       "id": "remittance-receiver",
       "name": "Remittance receiver",
       "group": "income",
       "description": "Regularly receives money sent from abroad.",
+      "polarity": "neutral",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -304,13 +466,17 @@
           }
         }
       ],
-      "reason": "money received from abroad in {remit_months} of last 6 months, {remit_total} in total"
+      "reason": "money received from abroad in {remit_months} of last 6 months, {remit_total} in total",
+      "limitations": [
+        "Uses only how often money arrives from abroad and how much, never the sending country; category labelling by the bank decides what counts."
+      ]
     },
     {
       "id": "rising-income",
       "name": "Rising income",
       "group": "income",
       "description": "Average monthly earned income in the last 3 months is clearly above the 6 months before.",
+      "polarity": "benefit",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -380,13 +546,17 @@
           }
         ]
       },
-      "reason": "average monthly earned income rose to {income_change} of its earlier level: {income_change.numerator} a month in the last 3 months against {income_change.denominator} in the 6 months before"
+      "reason": "average monthly earned income rose to {income_change} of its earlier level: {income_change.numerator} a month in the last 3 months against {income_change.denominator} in the 6 months before",
+      "limitations": [
+        "A one-off bonus inside the last 3 months can lift the average."
+      ]
     },
     {
       "id": "falling-income",
       "name": "Falling income",
       "group": "income",
       "description": "Average monthly earned income in the last 3 months is well below the 6 months before.",
+      "polarity": "burden",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -434,13 +604,17 @@
           }
         ]
       },
-      "reason": "average monthly earned income fell to {income_change} of its earlier level: {income_change.numerator} a month in the last 3 months against {income_change.denominator} in the 6 months before"
+      "reason": "average monthly earned income fell to {income_change} of its earlier level: {income_change.numerator} a month in the last 3 months against {income_change.denominator} in the 6 months before",
+      "limitations": [
+        "Does not say why income fell and must never be read as a cause."
+      ]
     },
     {
       "id": "large-recent-inflow",
       "name": "Large recent inflow",
       "group": "income",
       "description": "Received a single large credit recently, several times the usual monthly money in.",
+      "polarity": "neutral",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -510,13 +684,17 @@
           }
         ]
       },
-      "reason": "a single credit of {largest} in the last 3 months, {inflow_ratio} the usual monthly money in of {inflow_ratio.denominator} in the 6 months before"
+      "reason": "a single credit of {largest} in the last 3 months, {inflow_ratio} the usual monthly money in of {inflow_ratio.denominator} in the 6 months before",
+      "limitations": [
+        "A large credit may be a transfer between the customer's own accounts at another bank."
+      ]
     },
     {
       "id": "high-inflow",
       "name": "High monthly inflow",
       "group": "income",
       "description": "Money coming in averages a high amount per month.",
+      "polarity": "benefit",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -547,156 +725,76 @@
           }
         ]
       },
-      "reason": "money in averaged {avg_in} a month over the last 6 months"
+      "reason": "money in averaged {avg_in} a month over the last 6 months",
+      "limitations": [
+        "Money in includes transfers in, so moving money between banks can lift it."
+      ]
     },
     {
-      "id": "bill-payer",
-      "name": "Regular bill payer",
-      "group": "payments",
-      "description": "Pays utility or phone bills nearly every month.",
+      "id": "high-cash-user",
+      "name": "High cash user",
+      "group": "spending-pattern",
+      "description": "Takes out a large part of spending as cash.",
+      "polarity": "neutral",
       "fields": [
+        "transactions.amount",
         "transactions.category",
+        "transactions.channel",
+        "transactions.currency",
         "transactions.direction",
         "transactions.posted_date"
       ],
       "rule": {
         "all": [
           {
-            "id": "bill_months",
-            "description": "months with a utility or phone bill payment",
-            "metric": "months_where",
+            "id": "cash_share",
+            "description": "share of spending taken as cash",
+            "metric": "share",
             "filter": {
+              "category": "cash_withdrawal"
+            },
+            "of": {
               "direction": "debit",
-              "category": [
-                "utilities",
-                "telecom"
-              ]
+              "channel": {
+                "not_in": [
+                  "system"
+                ]
+              }
             },
+            "by": "amount",
             "window": {
-              "months": 6
-            },
-            "monthly": {
-              "measure": "count",
-              "op": ">=",
-              "value": 1
+              "days": 90
             },
             "op": ">=",
-            "value": 5
-          }
-        ]
-      },
-      "reason": "utility or phone bills paid in {bill_months} of last 6 months"
-    },
-    {
-      "id": "rent-payer",
-      "name": "Rent payer",
-      "group": "payments",
-      "description": "Pays rent nearly every month.",
-      "fields": [
-        "transactions.category",
-        "transactions.direction",
-        "transactions.posted_date"
-      ],
-      "rule": {
-        "all": [
+            "value": 0.4
+          },
           {
-            "id": "rent_months",
-            "description": "months with a rent payment",
-            "metric": "months_where",
+            "id": "cash_count",
+            "description": "cash withdrawals",
+            "metric": "count",
             "filter": {
               "direction": "debit",
-              "category": "rent"
+              "category": "cash_withdrawal"
             },
             "window": {
-              "months": 6
-            },
-            "monthly": {
-              "measure": "count",
-              "op": ">=",
-              "value": 1
+              "days": 90
             },
             "op": ">=",
-            "value": 5
+            "value": 4
           }
         ]
       },
-      "reason": "rent paid in {rent_months} of last 6 months"
+      "reason": "cash withdrawals were {cash_share} of spending in the last 90 days, {cash_count} withdrawals",
+      "limitations": [
+        "Cash taken out for someone else counts as the customer's own spending."
+      ]
     },
     {
-      "id": "loan-repayer",
-      "name": "Loan repayer",
-      "group": "payments",
-      "description": "Makes loan repayments nearly every month.",
-      "fields": [
-        "transactions.category",
-        "transactions.direction",
-        "transactions.posted_date"
-      ],
-      "rule": {
-        "all": [
-          {
-            "id": "loan_months",
-            "description": "months with a loan repayment",
-            "metric": "months_where",
-            "filter": {
-              "direction": "debit",
-              "category": "loan_repayment"
-            },
-            "window": {
-              "months": 6
-            },
-            "monthly": {
-              "measure": "count",
-              "op": ">=",
-              "value": 1
-            },
-            "op": ">=",
-            "value": 5
-          }
-        ]
-      },
-      "reason": "loan repayments made in {loan_months} of last 6 months"
-    },
-    {
-      "id": "insurance-payer",
-      "name": "Insurance payer",
-      "group": "payments",
-      "description": "Pays insurance premiums regularly (monthly or quarterly).",
-      "fields": [
-        "transactions.category",
-        "transactions.direction",
-        "transactions.posted_date"
-      ],
-      "rule": {
-        "all": [
-          {
-            "id": "insurance_months",
-            "description": "months with an insurance premium payment",
-            "metric": "months_where",
-            "filter": {
-              "direction": "debit",
-              "category": "insurance"
-            },
-            "window": {
-              "months": 12
-            },
-            "monthly": {
-              "measure": "count",
-              "op": ">=",
-              "value": 1
-            },
-            "op": ">=",
-            "value": 3
-          }
-        ]
-      },
-      "reason": "insurance premiums paid in {insurance_months} of last 12 months"
-    },
-    {
-      "id": "remittance-sender",
-      "name": "Remittance sender",
-      "group": "payments",
-      "description": "Regularly sends money abroad.",
+      "id": "dining-out",
+      "name": "Eats out often",
+      "group": "spending-pattern",
+      "description": "Pays at restaurants and cafés several times a month, most months.",
+      "polarity": "neutral",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -707,12 +805,12 @@
       "rule": {
         "all": [
           {
-            "id": "send_months",
-            "description": "months with money sent abroad",
+            "id": "dining_months",
+            "description": "months with at least 4 restaurant or café payments",
             "metric": "months_where",
             "filter": {
               "direction": "debit",
-              "category": "remittance_out"
+              "category": "dining"
             },
             "window": {
               "months": 6
@@ -720,97 +818,193 @@
             "monthly": {
               "measure": "count",
               "op": ">=",
-              "value": 1
+              "value": 4
             },
             "op": ">=",
-            "value": 3
+            "value": 4
           }
         ]
       },
       "facts": [
         {
-          "id": "send_total",
-          "description": "money sent abroad",
-          "metric": "sum",
+          "id": "dining_avg",
+          "description": "average spent on restaurants per month",
+          "metric": "sum_per_month",
           "filter": {
             "direction": "debit",
-            "category": "remittance_out"
+            "category": "dining"
           },
           "window": {
             "months": 6
           }
         }
       ],
-      "reason": "money sent abroad in {send_months} of last 6 months, {send_total} in total"
+      "reason": "eats out often: 4 or more restaurant payments in {dining_months} of the last 6 complete months",
+      "limitations": [
+        "Depends on the merchant category; a café inside a shop may be labelled as shopping."
+      ]
     },
     {
-      "id": "p2p-transfer-active",
-      "name": "Frequent person-to-person transfers",
-      "group": "payments",
-      "description": "Sends or receives many transfers to and from other people.",
+      "id": "groceries-regular",
+      "name": "Regular grocery shopper",
+      "group": "spending-pattern",
+      "description": "Buys groceries several times a month, nearly every month.",
+      "polarity": "neutral",
       "fields": [
         "transactions.category",
-        "transactions.posted_date"
-      ],
-      "rule": {
-        "all": [
-          {
-            "id": "p2p_count",
-            "description": "person-to-person transfers in or out",
-            "metric": "count",
-            "filter": {
-              "category": [
-                "transfer_in",
-                "transfer_out"
-              ]
-            },
-            "window": {
-              "days": 90
-            },
-            "op": ">=",
-            "value": 10
-          }
-        ]
-      },
-      "reason": "{p2p_count} person-to-person transfers in the last 90 days"
-    },
-    {
-      "id": "subscription-user",
-      "name": "Subscription user",
-      "group": "payments",
-      "description": "Pays several different subscriptions.",
-      "fields": [
-        "transactions.category",
-        "transactions.counterparty",
         "transactions.direction",
         "transactions.posted_date"
       ],
       "rule": {
         "all": [
           {
-            "id": "subscriptions",
-            "description": "different subscriptions paid",
-            "metric": "distinct",
-            "field": "counterparty",
+            "id": "grocery_months",
+            "description": "months with at least 4 grocery payments",
+            "metric": "months_where",
             "filter": {
               "direction": "debit",
-              "category": "subscription"
+              "category": "groceries"
             },
             "window": {
-              "days": 90
+              "months": 6
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 4
             },
             "op": ">=",
-            "value": 3
+            "value": 5
           }
         ]
       },
-      "reason": "paying {subscriptions} different subscriptions in the last 90 days"
+      "reason": "regular grocery shopping: 4 or more grocery payments in {grocery_months} of the last 6 complete months",
+      "limitations": [
+        "Groceries paid in cash are not seen."
+      ]
     },
     {
-      "id": "frequent-fee-payer",
-      "name": "Frequent bank charges",
-      "group": "payments",
-      "description": "Pays bank charges often; a better-suited account might avoid them.",
+      "id": "commuter",
+      "name": "Regular commuter",
+      "group": "spending-pattern",
+      "description": "Pays for transport or fuel many times a month.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.category",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "commute_months",
+            "description": "months with at least 6 transport or fuel payments",
+            "metric": "months_where",
+            "filter": {
+              "direction": "debit",
+              "category": [
+                "fuel",
+                "transport"
+              ]
+            },
+            "window": {
+              "months": 6
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 6
+            },
+            "op": ">=",
+            "value": 4
+          }
+        ]
+      },
+      "reason": "regular transport or fuel spending: 6 or more payments in {commute_months} of the last 6 complete months",
+      "limitations": [
+        "A monthly travel pass bought once a month does not count as commuting."
+      ]
+    },
+    {
+      "id": "big-ticket-purchase",
+      "name": "Recent large purchase",
+      "group": "spending-pattern",
+      "description": "Made a single card purchase recently that is large compared with usual card spending.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.amount",
+        "transactions.channel",
+        "transactions.currency",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "largest_purchase",
+            "description": "largest single card purchase",
+            "metric": "max",
+            "filter": {
+              "direction": "debit",
+              "channel": [
+                "card_pos",
+                "card_online"
+              ]
+            },
+            "window": {
+              "months": 3
+            },
+            "op": ">=",
+            "value": 1500
+          },
+          {
+            "id": "purchase_vs_usual",
+            "description": "largest card purchase against usual monthly card spending",
+            "metric": "ratio",
+            "numerator": {
+              "metric": "max",
+              "filter": {
+                "direction": "debit",
+                "channel": [
+                  "card_pos",
+                  "card_online"
+                ]
+              },
+              "window": {
+                "months": 3
+              }
+            },
+            "denominator": {
+              "metric": "sum_per_month",
+              "filter": {
+                "direction": "debit",
+                "channel": [
+                  "card_pos",
+                  "card_online"
+                ]
+              },
+              "window": {
+                "months": 6,
+                "offset_months": 3
+              }
+            },
+            "min_denominator": 100,
+            "op": ">=",
+            "value": 1.5
+          }
+        ]
+      },
+      "reason": "a recent large purchase of {largest_purchase}, {purchase_vs_usual} the usual monthly card spending of {purchase_vs_usual.denominator}",
+      "limitations": [
+        "A purchase paid by transfer or in instalments is not seen as one large purchase."
+      ]
+    },
+    {
+      "id": "spending-rising",
+      "name": "Spending rising",
+      "group": "spending-pattern",
+      "description": "Average monthly spending in the last 3 months is clearly above the 6 months before.",
+      "polarity": "neutral",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -821,42 +1015,59 @@
       "rule": {
         "all": [
           {
-            "id": "fee_count",
-            "description": "bank charges",
-            "metric": "count",
-            "filter": {
-              "direction": "debit",
-              "category": "fee"
+            "id": "spend_change",
+            "description": "average monthly spending, recent against earlier",
+            "metric": "ratio",
+            "numerator": {
+              "metric": "sum_per_month",
+              "filter": {
+                "direction": "debit",
+                "category": {
+                  "not_in": [
+                    "savings_transfer",
+                    "investment"
+                  ]
+                }
+              },
+              "window": {
+                "months": 3
+              }
             },
-            "window": {
-              "days": 90
+            "denominator": {
+              "metric": "sum_per_month",
+              "filter": {
+                "direction": "debit",
+                "category": {
+                  "not_in": [
+                    "savings_transfer",
+                    "investment"
+                  ]
+                }
+              },
+              "window": {
+                "months": 6,
+                "offset_months": 3
+              }
             },
+            "min_denominator": 300,
             "op": ">=",
-            "value": 3
+            "value": 1.3,
+            "format": "percent"
           }
         ]
       },
-      "facts": [
-        {
-          "id": "fee_total",
-          "description": "bank charges paid",
-          "metric": "sum",
-          "filter": {
-            "direction": "debit",
-            "category": "fee"
-          },
-          "window": {
-            "days": 90
-          }
-        }
-      ],
-      "reason": "{fee_count} bank charges in the last 90 days, {fee_total} in total"
+      "reason": "spending rose to {spend_change} of its earlier level: {spend_change.numerator} a month against {spend_change.denominator}",
+      "limitations": [
+        "Seasonal spending, such as a holiday month, can lift the recent average.",
+        "Says nothing about affordability and must never be used for credit."
+      ]
     },
     {
       "id": "card-heavy-spender",
       "name": "Card-heavy spender",
-      "group": "spending",
+      "group": "card-use",
       "description": "Most spending is by card.",
+      "polarity": "neutral",
       "fields": [
         "transactions.amount",
         "transactions.channel",
@@ -910,13 +1121,17 @@
           }
         ]
       },
-      "reason": "{card_share} of spending was by card in the last 90 days, {card_count} card payments"
+      "reason": "{card_share} of spending was by card in the last 90 days, {card_count} card payments",
+      "limitations": [
+        "Card spending through a digital wallet may be labelled as another channel."
+      ]
     },
     {
       "id": "online-shopper",
       "name": "Online shopper",
-      "group": "spending",
+      "group": "card-use",
       "description": "Makes frequent online card purchases.",
+      "polarity": "neutral",
       "fields": [
         "transactions.channel",
         "transactions.direction",
@@ -940,68 +1155,17 @@
           }
         ]
       },
-      "reason": "{online_count} online card purchases in the last 90 days"
-    },
-    {
-      "id": "high-cash-user",
-      "name": "High cash user",
-      "group": "spending",
-      "description": "Takes out a large part of spending as cash.",
-      "fields": [
-        "transactions.amount",
-        "transactions.category",
-        "transactions.channel",
-        "transactions.currency",
-        "transactions.direction",
-        "transactions.posted_date"
-      ],
-      "rule": {
-        "all": [
-          {
-            "id": "cash_share",
-            "description": "share of spending taken as cash",
-            "metric": "share",
-            "filter": {
-              "category": "cash_withdrawal"
-            },
-            "of": {
-              "direction": "debit",
-              "channel": {
-                "not_in": [
-                  "system"
-                ]
-              }
-            },
-            "by": "amount",
-            "window": {
-              "days": 90
-            },
-            "op": ">=",
-            "value": 0.4
-          },
-          {
-            "id": "cash_count",
-            "description": "cash withdrawals",
-            "metric": "count",
-            "filter": {
-              "direction": "debit",
-              "category": "cash_withdrawal"
-            },
-            "window": {
-              "days": 90
-            },
-            "op": ">=",
-            "value": 4
-          }
-        ]
-      },
-      "reason": "cash withdrawals were {cash_share} of spending in the last 90 days, {cash_count} withdrawals"
+      "reason": "{online_count} online card purchases in the last 90 days",
+      "limitations": [
+        "Relies on the online channel flag from the card network."
+      ]
     },
     {
       "id": "foreign-currency-spender",
       "name": "Foreign-currency spender",
-      "group": "spending",
+      "group": "card-use",
       "description": "A large part of card spending is in foreign currencies.",
+      "polarity": "neutral",
       "fields": [
         "customers.home_currency",
         "transactions.amount",
@@ -1053,13 +1217,72 @@
           }
         ]
       },
-      "reason": "{fx_share} of card spending in the last 90 days was in foreign currencies, {fx_count} payments"
+      "reason": "{fx_share} of card spending in the last 90 days was in foreign currencies, {fx_count} payments",
+      "limitations": [
+        "Online purchases priced in a foreign currency count the same as spending abroad."
+      ]
+    },
+    {
+      "id": "card-dormant",
+      "name": "Card no longer used",
+      "group": "card-use",
+      "description": "Used a card regularly before, but not in the last 3 complete months.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.channel",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "cards_before",
+            "description": "card payments",
+            "metric": "count",
+            "filter": {
+              "direction": "debit",
+              "channel": [
+                "card_pos",
+                "card_online"
+              ]
+            },
+            "window": {
+              "months": 9,
+              "offset_months": 3
+            },
+            "op": ">=",
+            "value": 6
+          },
+          {
+            "id": "cards_recent",
+            "description": "card payments",
+            "metric": "count",
+            "filter": {
+              "direction": "debit",
+              "channel": [
+                "card_pos",
+                "card_online"
+              ]
+            },
+            "window": {
+              "months": 3
+            },
+            "op": "<=",
+            "value": 0
+          }
+        ]
+      },
+      "reason": "card used {cards_before} times in the 9 months before, but not in the last 3 complete months",
+      "limitations": [
+        "A replaced or reissued card is the same card here; a card at another bank is not seen."
+      ]
     },
     {
       "id": "digital-first",
       "name": "Digital-first",
-      "group": "channels",
+      "group": "channel-and-digital",
       "description": "Does almost all self-service banking in the app, online banking or with online card payments.",
+      "polarity": "neutral",
       "fields": [
         "transactions.channel",
         "transactions.posted_date"
@@ -1112,13 +1335,17 @@
           }
         ]
       },
-      "reason": "{digital_share} of {self_count} self-service transactions in the last 90 days were in the app, online banking or online card payments"
+      "reason": "{digital_share} of {self_count} self-service transactions in the last 90 days were in the app, online banking or online card payments",
+      "limitations": [
+        "Counts transactions, not logins: someone who checks the app but pays in a branch is not digital-first."
+      ]
     },
     {
       "id": "branch-reliant",
       "name": "Branch-reliant",
-      "group": "channels",
+      "group": "channel-and-digital",
       "description": "Does much of their self-service banking in a branch.",
+      "polarity": "neutral",
       "fields": [
         "transactions.channel",
         "transactions.posted_date"
@@ -1162,13 +1389,17 @@
           }
         ]
       },
-      "reason": "{branch_share} of self-service transactions in the last 90 days were in a branch, {branch_count} branch transactions"
+      "reason": "{branch_share} of self-service transactions in the last 90 days were in a branch, {branch_count} branch transactions",
+      "limitations": [
+        "Reflects the channel only; must never be read as a sign of age or ability."
+      ]
     },
     {
       "id": "cash-depositor",
       "name": "Regular cash depositor",
-      "group": "channels",
+      "group": "channel-and-digital",
       "description": "Deposits cash in most months.",
+      "polarity": "neutral",
       "fields": [
         "transactions.category",
         "transactions.direction",
@@ -1197,13 +1428,207 @@
           }
         ]
       },
-      "reason": "cash deposited in {deposit_months} of last 6 months"
+      "reason": "cash deposited in {deposit_months} of last 6 months",
+      "limitations": [
+        "Does not say where the cash comes from."
+      ]
+    },
+    {
+      "id": "mobile-active",
+      "name": "Active in the mobile app",
+      "group": "channel-and-digital",
+      "description": "Uses the mobile app every month and often.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.channel",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "app_months",
+            "description": "months with a mobile app transaction",
+            "metric": "months_where",
+            "filter": {
+              "channel": "mobile_app"
+            },
+            "window": {
+              "months": 3
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 3
+          },
+          {
+            "id": "app_txns",
+            "description": "mobile app transactions",
+            "metric": "count",
+            "filter": {
+              "channel": "mobile_app"
+            },
+            "window": {
+              "days": 90
+            },
+            "op": ">=",
+            "value": 6
+          }
+        ]
+      },
+      "reason": "uses the mobile app every month: {app_txns} app transactions in the last 90 days",
+      "limitations": [
+        "Counts transactions made in the app, not logins or balance checks."
+      ]
+    },
+    {
+      "id": "frequent-traveller",
+      "name": "Frequent traveller",
+      "group": "travel",
+      "description": "Uses a card or ATM abroad in several different months.",
+      "polarity": "neutral",
+      "fields": [
+        "customers.home_country",
+        "transactions.channel",
+        "transactions.posted_date",
+        "transactions.txn_country"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "abroad_months",
+            "description": "months with card or ATM use abroad",
+            "metric": "months_where",
+            "filter": {
+              "channel": [
+                "card_pos",
+                "atm"
+              ],
+              "is_foreign_country": true
+            },
+            "window": {
+              "months": 12
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 3
+          },
+          {
+            "id": "countries",
+            "description": "different countries with card or ATM use",
+            "metric": "distinct",
+            "field": "txn_country",
+            "filter": {
+              "channel": [
+                "card_pos",
+                "atm"
+              ],
+              "is_foreign_country": true
+            },
+            "window": {
+              "months": 12
+            },
+            "op": ">=",
+            "value": 2
+          }
+        ]
+      },
+      "reason": "card or ATM used abroad in {abroad_months} of last 12 months, in {countries} countries",
+      "limitations": [
+        "Online purchases from foreign merchants with a foreign merchant country can look like travel; never says which country."
+      ]
+    },
+    {
+      "id": "recent-traveller",
+      "name": "Travelled recently",
+      "group": "travel",
+      "description": "Used a card or ATM abroad in the last 30 days.",
+      "polarity": "neutral",
+      "fields": [
+        "customers.home_country",
+        "transactions.channel",
+        "transactions.posted_date",
+        "transactions.txn_country"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "abroad_recent",
+            "description": "card or ATM use abroad",
+            "metric": "count",
+            "filter": {
+              "is_foreign_country": true,
+              "channel": [
+                "atm",
+                "card_pos"
+              ]
+            },
+            "window": {
+              "days": 30
+            },
+            "op": ">=",
+            "value": 2
+          }
+        ]
+      },
+      "reason": "card or ATM used abroad {abroad_recent} times in the last 30 days",
+      "limitations": [
+        "Never says which country.",
+        "Needs the home country; without it the tag is not evaluated."
+      ]
+    },
+    {
+      "id": "travel-booker",
+      "name": "Books travel",
+      "group": "travel",
+      "description": "Pays for flights, hotels or travel agents in several months of the year.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.category",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "travel_months",
+            "description": "months with a travel booking (airline, hotel, travel agent or car hire)",
+            "metric": "months_where",
+            "filter": {
+              "direction": "debit",
+              "category": "travel"
+            },
+            "window": {
+              "months": 12
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 2
+          }
+        ]
+      },
+      "reason": "travel booked in {travel_months} of the last 12 complete months",
+      "limitations": [
+        "Depends on merchant codes; travel booked through a general marketplace is missed.",
+        "Never says where the customer travels."
+      ]
     },
     {
       "id": "saver",
       "name": "Saver",
-      "group": "saving",
+      "group": "savings-and-balances",
       "description": "Regularly moves money to savings, or keeps a good part of what comes in.",
+      "polarity": "benefit",
       "fields": [
         "transactions.amount",
         "transactions.category",
@@ -1256,13 +1681,17 @@
           }
         ]
       },
-      "reason": "moved money to savings in {transfer_months} of last 6 months; kept 20% or more of money in during {surplus_months} of last 12 months"
+      "reason": "moved money to savings in {transfer_months} of last 6 months; kept 20% or more of money in during {surplus_months} of last 12 months",
+      "limitations": [
+        "Savings held at another bank are not seen."
+      ]
     },
     {
       "id": "investor",
       "name": "Investor",
-      "group": "saving",
+      "group": "savings-and-balances",
       "description": "Buys investments.",
+      "polarity": "benefit",
       "fields": [
         "transactions.category",
         "transactions.direction",
@@ -1286,15 +1715,21 @@
           }
         ]
       },
-      "reason": "{invest_count} investment purchases in the last 180 days"
+      "reason": "{invest_count} investment purchases in the last 180 days",
+      "limitations": [
+        "Investments made through another provider are not seen."
+      ]
     },
     {
-      "id": "spending-exceeds-inflow",
-      "name": "Spending exceeds money in",
-      "group": "saving",
-      "description": "Spent clearly more than came in during most recent months.",
+      "id": "healthy-buffer",
+      "name": "Keeps a healthy buffer",
+      "group": "savings-and-balances",
+      "description": "Keeps an average month-end balance of at least three months of spending, and never goes overdrawn.",
+      "polarity": "benefit",
       "fields": [
         "transactions.amount",
+        "transactions.balance_after",
+        "transactions.category",
         "transactions.currency",
         "transactions.direction",
         "transactions.posted_date"
@@ -1302,48 +1737,288 @@
       "rule": {
         "all": [
           {
-            "id": "deficit_months",
-            "description": "months where money out exceeded money in by 100 or more (base currency)",
-            "metric": "months_where",
-            "filter": {},
+            "id": "buffer_months",
+            "description": "average month-end balance against average monthly spending",
+            "metric": "ratio",
+            "numerator": {
+              "metric": "balance",
+              "measure": "average_month_end",
+              "window": {
+                "months": 6
+              }
+            },
+            "denominator": {
+              "metric": "sum_per_month",
+              "filter": {
+                "direction": "debit",
+                "category": {
+                  "not_in": [
+                    "savings_transfer",
+                    "investment"
+                  ]
+                }
+              },
+              "window": {
+                "months": 6
+              }
+            },
+            "min_denominator": 100,
+            "op": ">=",
+            "value": 3
+          },
+          {
+            "id": "lowest_balance",
+            "description": "lowest balance",
+            "metric": "balance",
             "window": {
               "months": 6
             },
-            "monthly": {
-              "measure": "net_flow",
-              "op": "<=",
-              "value": -100
-            },
+            "measure": "lowest",
             "op": ">=",
-            "value": 4
+            "value": 0
           }
         ]
       },
-      "reason": "spent more than came in during {deficit_months} of last 6 months"
+      "reason": "keeps a buffer of {buffer_months} monthly spending ({buffer_months.numerator} against {buffer_months.denominator} a month), lowest balance {lowest_balance}",
+      "limitations": [
+        "Needs the balance after each transaction; without it the tag is not evaluated.",
+        "Money kept in other accounts is not seen."
+      ]
     },
     {
-      "id": "frequent-traveller",
-      "name": "Frequent traveller",
-      "group": "travel",
-      "description": "Uses a card or ATM abroad in several different months.",
+      "id": "balance-growing",
+      "name": "Balance growing",
+      "group": "savings-and-balances",
+      "description": "The average month-end balance of the last 3 months is well above the 6 months before.",
+      "polarity": "benefit",
       "fields": [
-        "customers.home_country",
-        "transactions.channel",
-        "transactions.posted_date",
-        "transactions.txn_country"
+        "transactions.balance_after",
+        "transactions.posted_date"
       ],
       "rule": {
         "all": [
           {
-            "id": "abroad_months",
-            "description": "months with card or ATM use abroad",
+            "id": "balance_change",
+            "description": "average month-end balance, recent against earlier",
+            "metric": "ratio",
+            "numerator": {
+              "metric": "balance",
+              "measure": "average_month_end",
+              "window": {
+                "months": 3
+              }
+            },
+            "denominator": {
+              "metric": "balance",
+              "measure": "average_month_end",
+              "window": {
+                "months": 6,
+                "offset_months": 3
+              }
+            },
+            "min_denominator": 1000,
+            "op": ">=",
+            "value": 1.5,
+            "format": "percent"
+          }
+        ]
+      },
+      "reason": "month-end balance grew to {balance_change} of its earlier level: {balance_change.numerator} against {balance_change.denominator}",
+      "limitations": [
+        "Needs the balance after each transaction; without it the tag is not evaluated.",
+        "A single large credit can lift the balance without any change in habits."
+      ]
+    },
+    {
+      "id": "idle-balance",
+      "name": "Large balance, little activity",
+      "group": "savings-and-balances",
+      "description": "Keeps a large balance but uses the account little; a savings conversation may help.",
+      "polarity": "benefit",
+      "fields": [
+        "transactions.balance_after",
+        "transactions.channel",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "avg_balance",
+            "description": "average month-end balance",
+            "metric": "balance",
+            "window": {
+              "months": 6
+            },
+            "measure": "average_month_end",
+            "op": ">=",
+            "value": 10000
+          },
+          {
+            "id": "recent_activity",
+            "description": "self-service transactions",
+            "metric": "count",
+            "filter": {
+              "channel": {
+                "not_in": [
+                  "incoming",
+                  "system"
+                ]
+              }
+            },
+            "window": {
+              "days": 90
+            },
+            "op": "<=",
+            "value": 6
+          }
+        ]
+      },
+      "reason": "average month-end balance of {avg_balance} with only {recent_activity} self-service transactions in the last 90 days",
+      "limitations": [
+        "Needs the balance after each transaction; without it the tag is not evaluated.",
+        "For service only: never for pricing or product steering against the customer's interest."
+      ]
+    },
+    {
+      "id": "bill-payer",
+      "name": "Regular bill payer",
+      "group": "bills-and-subscriptions",
+      "description": "Pays utility or phone bills nearly every month.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.category",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "bill_months",
+            "description": "months with a utility or phone bill payment",
             "metric": "months_where",
             "filter": {
-              "channel": [
-                "card_pos",
-                "atm"
-              ],
-              "is_foreign_country": true
+              "direction": "debit",
+              "category": [
+                "utilities",
+                "telecom"
+              ]
+            },
+            "window": {
+              "months": 6
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 5
+          }
+        ]
+      },
+      "reason": "utility or phone bills paid in {bill_months} of last 6 months",
+      "limitations": [
+        "Bills paid from another account or by someone else are not seen."
+      ]
+    },
+    {
+      "id": "rent-payer",
+      "name": "Rent payer",
+      "group": "bills-and-subscriptions",
+      "description": "Pays rent nearly every month.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.category",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "rent_months",
+            "description": "months with a rent payment",
+            "metric": "months_where",
+            "filter": {
+              "direction": "debit",
+              "category": "rent"
+            },
+            "window": {
+              "months": 6
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 5
+          }
+        ]
+      },
+      "reason": "rent paid in {rent_months} of last 6 months",
+      "limitations": [
+        "Rent paid as a plain transfer without the rent category is missed."
+      ]
+    },
+    {
+      "id": "loan-repayer",
+      "name": "Loan repayer",
+      "group": "bills-and-subscriptions",
+      "description": "Makes loan repayments nearly every month.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.category",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "loan_months",
+            "description": "months with a loan repayment",
+            "metric": "months_where",
+            "filter": {
+              "direction": "debit",
+              "category": "loan_repayment"
+            },
+            "window": {
+              "months": 6
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 5
+          }
+        ]
+      },
+      "reason": "loan repayments made in {loan_months} of last 6 months",
+      "limitations": [
+        "Shows only repayments made from this account; says nothing about creditworthiness and must never be used in a credit decision."
+      ]
+    },
+    {
+      "id": "insurance-payer",
+      "name": "Insurance payer",
+      "group": "bills-and-subscriptions",
+      "description": "Pays insurance premiums regularly (monthly or quarterly).",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.category",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "insurance_months",
+            "description": "months with an insurance premium payment",
+            "metric": "months_where",
+            "filter": {
+              "direction": "debit",
+              "category": "insurance"
             },
             "window": {
               "months": 12
@@ -1355,34 +2030,232 @@
             },
             "op": ">=",
             "value": 3
-          },
+          }
+        ]
+      },
+      "reason": "insurance premiums paid in {insurance_months} of last 12 months",
+      "limitations": [
+        "Annual premiums paid once a year fall below the threshold."
+      ]
+    },
+    {
+      "id": "subscription-user",
+      "name": "Subscription user",
+      "group": "bills-and-subscriptions",
+      "description": "Pays several different subscriptions.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.category",
+        "transactions.counterparty",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
           {
-            "id": "countries",
-            "description": "different countries with card or ATM use",
+            "id": "subscriptions",
+            "description": "different subscriptions paid",
             "metric": "distinct",
-            "field": "txn_country",
+            "field": "counterparty",
             "filter": {
-              "channel": [
-                "card_pos",
-                "atm"
-              ],
-              "is_foreign_country": true
+              "direction": "debit",
+              "category": "subscription"
             },
             "window": {
-              "months": 12
+              "days": 90
             },
+            "op": ">=",
+            "value": 3
+          }
+        ]
+      },
+      "reason": "paying {subscriptions} different subscriptions in the last 90 days",
+      "limitations": [
+        "Depends on the subscription category; a subscription charged under another category is missed."
+      ]
+    },
+    {
+      "id": "recurring-bills",
+      "name": "Several recurring bills",
+      "group": "bills-and-subscriptions",
+      "description": "Pays at least two bills that recur every month at a steady amount.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.amount",
+        "transactions.counterparty",
+        "transactions.currency",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "bill_streams",
+            "description": "recurring monthly bills (utilities, phone, rent)",
+            "metric": "recurring",
+            "filter": {
+              "direction": "debit",
+              "counterparty_kind": [
+                "biller"
+              ]
+            },
+            "window": {
+              "months": 6
+            },
+            "period_months": 1,
+            "min_occurrences": 4,
+            "amount_tolerance": 0.25,
+            "amount_floor": 10,
+            "max_missed": 1,
             "op": ">=",
             "value": 2
           }
         ]
       },
-      "reason": "card or ATM used abroad in {abroad_months} of last 12 months, in {countries} countries"
+      "reason": "{bill_streams} recurring monthly bills in the last 6 complete months",
+      "limitations": [
+        "Only payees listed as billers in the counterparty table count."
+      ]
+    },
+    {
+      "id": "many-subscriptions",
+      "name": "Many subscriptions",
+      "group": "bills-and-subscriptions",
+      "description": "Pays four or more subscriptions that recur every month.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.amount",
+        "transactions.category",
+        "transactions.counterparty",
+        "transactions.currency",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "sub_streams",
+            "description": "recurring monthly subscriptions",
+            "metric": "recurring",
+            "filter": {
+              "direction": "debit",
+              "category": "subscription"
+            },
+            "window": {
+              "months": 6
+            },
+            "period_months": 1,
+            "min_occurrences": 3,
+            "amount_tolerance": 0.1,
+            "amount_floor": 1,
+            "max_missed": 0,
+            "op": ">=",
+            "value": 4
+          }
+        ]
+      },
+      "reason": "{sub_streams} recurring monthly subscriptions in the last 6 complete months",
+      "limitations": [
+        "Annual subscriptions are not counted.",
+        "Depends on the counterparty table to recognise one merchant behind different descriptors."
+      ]
+    },
+    {
+      "id": "remittance-sender",
+      "name": "Remittance sender",
+      "group": "transfers",
+      "description": "Regularly sends money abroad.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.amount",
+        "transactions.category",
+        "transactions.currency",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "send_months",
+            "description": "months with money sent abroad",
+            "metric": "months_where",
+            "filter": {
+              "direction": "debit",
+              "category": "remittance_out"
+            },
+            "window": {
+              "months": 6
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 3
+          }
+        ]
+      },
+      "facts": [
+        {
+          "id": "send_total",
+          "description": "money sent abroad",
+          "metric": "sum",
+          "filter": {
+            "direction": "debit",
+            "category": "remittance_out"
+          },
+          "window": {
+            "months": 6
+          }
+        }
+      ],
+      "reason": "money sent abroad in {send_months} of last 6 months, {send_total} in total",
+      "limitations": [
+        "Uses only how often money is sent abroad and how much, never the destination."
+      ]
+    },
+    {
+      "id": "p2p-transfer-active",
+      "name": "Frequent person-to-person transfers",
+      "group": "transfers",
+      "description": "Sends or receives many transfers to and from other people.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.category",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "p2p_count",
+            "description": "person-to-person transfers in or out",
+            "metric": "count",
+            "filter": {
+              "category": [
+                "transfer_in",
+                "transfer_out"
+              ]
+            },
+            "window": {
+              "days": 90
+            },
+            "op": ">=",
+            "value": 10
+          }
+        ]
+      },
+      "reason": "{p2p_count} person-to-person transfers in the last 90 days",
+      "limitations": [
+        "Counts transfers in both directions, so a few large and many small transfers weigh the same."
+      ]
     },
     {
       "id": "new-customer",
       "name": "New customer",
-      "group": "engagement",
+      "group": "engagement-and-lifecycle",
       "description": "Opened their account recently.",
+      "polarity": "neutral",
       "fields": [
         "customers.account_open_date"
       ],
@@ -1397,27 +2270,23 @@
           }
         ]
       },
-      "reason": "account opened {tenure} ago"
+      "reason": "account opened {tenure} ago",
+      "limitations": [
+        "Needs the account opening date; without it the tag is not evaluated."
+      ]
     },
     {
-      "id": "established-customer",
-      "name": "Established customer",
-      "group": "engagement",
-      "description": "Has banked here for years and is active nearly every month.",
+      "id": "active-customer",
+      "name": "Active",
+      "group": "engagement-and-lifecycle",
+      "description": "Uses the account for self-service banking every month.",
+      "polarity": "benefit",
       "fields": [
-        "customers.account_open_date",
         "transactions.channel",
         "transactions.posted_date"
       ],
       "rule": {
         "all": [
-          {
-            "id": "tenure",
-            "description": "days since the account was opened",
-            "metric": "tenure_days",
-            "op": ">=",
-            "value": 1095
-          },
           {
             "id": "active_months",
             "description": "months with self-service activity",
@@ -1431,7 +2300,7 @@
               }
             },
             "window": {
-              "months": 12
+              "months": 3
             },
             "monthly": {
               "measure": "count",
@@ -1439,17 +2308,21 @@
               "value": 1
             },
             "op": ">=",
-            "value": 10
+            "value": 3
           }
         ]
       },
-      "reason": "account open {tenure}, active in {active_months} of last 12 months"
+      "reason": "self-service activity in {active_months} of the last 3 complete months",
+      "limitations": [
+        "Interest, fees and incoming payments do not count as activity."
+      ]
     },
     {
       "id": "going-dormant",
       "name": "Going dormant",
-      "group": "engagement",
+      "group": "engagement-and-lifecycle",
       "description": "Self-service activity has dropped sharply compared with before.",
+      "polarity": "neutral",
       "fields": [
         "customers.account_open_date",
         "transactions.channel",
@@ -1505,13 +2378,17 @@
           }
         ]
       },
-      "reason": "self-service activity fell to {activity_change} of its earlier level: on average {activity_change.numerator} a month in the last 90 days against {activity_change.denominator} a month in the 270 days before"
+      "reason": "self-service activity fell to {activity_change} of its earlier level: on average {activity_change.numerator} a month in the last 90 days against {activity_change.denominator} a month in the 270 days before",
+      "limitations": [
+        "Activity moved to another account of the same customer looks like a drop."
+      ]
     },
     {
       "id": "dormant",
       "name": "Dormant",
-      "group": "engagement",
+      "group": "engagement-and-lifecycle",
       "description": "No self-service activity for six months.",
+      "polarity": "neutral",
       "fields": [
         "customers.account_open_date",
         "transactions.channel",
@@ -1546,13 +2423,17 @@
           }
         ]
       },
-      "reason": "no self-service transactions in the last 180 days; account open {tenure}"
+      "reason": "no self-service transactions in the last 180 days; account open {tenure}",
+      "limitations": [
+        "A service label only: it never replaces the bank's legal dormancy status and never changes the account."
+      ]
     },
     {
       "id": "re-engaged",
       "name": "Re-engaged",
-      "group": "engagement",
+      "group": "engagement-and-lifecycle",
       "description": "Became active again after a long quiet period.",
+      "polarity": "neutral",
       "fields": [
         "customers.account_open_date",
         "transactions.channel",
@@ -1606,7 +2487,385 @@
           }
         ]
       },
-      "reason": "{recent_count} self-service transactions in the last 90 days after {earlier_count} in the 180 days before"
+      "reason": "{recent_count} self-service transactions in the last 90 days after {earlier_count} in the 180 days before",
+      "limitations": [
+        "A single burst of activity can trigger it; the next month-end check shows whether it lasts."
+      ]
+    },
+    {
+      "id": "established-customer",
+      "name": "Established customer",
+      "group": "engagement-and-lifecycle",
+      "description": "Has banked here for years and is active nearly every month.",
+      "polarity": "benefit",
+      "fields": [
+        "customers.account_open_date",
+        "transactions.channel",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "tenure",
+            "description": "days since the account was opened",
+            "metric": "tenure_days",
+            "op": ">=",
+            "value": 1095
+          },
+          {
+            "id": "active_months",
+            "description": "months with self-service activity",
+            "metric": "months_where",
+            "filter": {
+              "channel": {
+                "not_in": [
+                  "incoming",
+                  "system"
+                ]
+              }
+            },
+            "window": {
+              "months": 12
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 10
+          }
+        ]
+      },
+      "reason": "account open {tenure}, active in {active_months} of last 12 months",
+      "limitations": [
+        "Needs the account opening date; without it the tag is not evaluated."
+      ]
+    },
+    {
+      "id": "salary-moved-away",
+      "name": "Salary credits stopped",
+      "group": "engagement-and-lifecycle",
+      "description": "Received a salary nearly every month before, none in the last 2 months, but still uses the account.",
+      "polarity": "neutral",
+      "fields": [
+        "transactions.category",
+        "transactions.channel",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "salary_before",
+            "description": "months with a salary credit",
+            "metric": "months_where",
+            "filter": {
+              "direction": "credit",
+              "category": "salary"
+            },
+            "window": {
+              "months": 6,
+              "offset_months": 3
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 5
+          },
+          {
+            "id": "salary_recent",
+            "description": "salary credits",
+            "metric": "count",
+            "filter": {
+              "direction": "credit",
+              "category": "salary"
+            },
+            "window": {
+              "months": 2
+            },
+            "op": "<=",
+            "value": 0
+          },
+          {
+            "id": "still_active",
+            "description": "self-service transactions",
+            "metric": "count",
+            "filter": {
+              "channel": {
+                "not_in": [
+                  "incoming",
+                  "system"
+                ]
+              }
+            },
+            "window": {
+              "days": 90
+            },
+            "op": ">=",
+            "value": 3
+          }
+        ]
+      },
+      "reason": "salary credited in {salary_before} of the 6 months before, none in the last 2 complete months, while the account is still used",
+      "limitations": [
+        "States only the pattern seen; it never says why the salary stopped."
+      ]
+    },
+    {
+      "id": "spending-exceeds-inflow",
+      "name": "Spending exceeds money in",
+      "group": "financial-stress",
+      "description": "Spent clearly more than came in during most recent months.",
+      "polarity": "burden",
+      "fields": [
+        "transactions.amount",
+        "transactions.currency",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "deficit_months",
+            "description": "months where money out exceeded money in by 100 or more (base currency)",
+            "metric": "months_where",
+            "filter": {},
+            "window": {
+              "months": 6
+            },
+            "monthly": {
+              "measure": "net_flow",
+              "op": "<=",
+              "value": -100
+            },
+            "op": ">=",
+            "value": 4
+          }
+        ]
+      },
+      "reason": "spent more than came in during {deficit_months} of last 6 months",
+      "limitations": [
+        "Spending from savings held elsewhere looks like spending above income; a support signal, never for credit, pricing or collections."
+      ]
+    },
+    {
+      "id": "frequent-fee-payer",
+      "name": "Frequent bank charges",
+      "group": "financial-stress",
+      "description": "Pays bank charges often; a better-suited account might avoid them.",
+      "polarity": "burden",
+      "fields": [
+        "transactions.amount",
+        "transactions.category",
+        "transactions.currency",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "fee_count",
+            "description": "bank charges",
+            "metric": "count",
+            "filter": {
+              "direction": "debit",
+              "category": "fee"
+            },
+            "window": {
+              "days": 90
+            },
+            "op": ">=",
+            "value": 3
+          }
+        ]
+      },
+      "facts": [
+        {
+          "id": "fee_total",
+          "description": "bank charges paid",
+          "metric": "sum",
+          "filter": {
+            "direction": "debit",
+            "category": "fee"
+          },
+          "window": {
+            "days": 90
+          }
+        }
+      ],
+      "reason": "{fee_count} bank charges in the last 90 days, {fee_total} in total",
+      "limitations": [
+        "Counts charges, not their cause.",
+        "A support signal only: never for credit, pricing or collections."
+      ]
+    },
+    {
+      "id": "repeated-low-balance",
+      "name": "Repeatedly low balance",
+      "group": "financial-stress",
+      "description": "The balance fell below 100 in several recent months.",
+      "polarity": "burden",
+      "fields": [
+        "transactions.balance_after",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "low_months",
+            "description": "months where the lowest balance was below 100 (base currency)",
+            "metric": "months_where",
+            "window": {
+              "months": 6
+            },
+            "monthly": {
+              "measure": "min_balance",
+              "op": "<",
+              "value": 100
+            },
+            "op": ">=",
+            "value": 3
+          }
+        ]
+      },
+      "reason": "balance fell below 100 in {low_months} of the last 6 complete months",
+      "limitations": [
+        "A support signal only: never for credit, pricing or collections.",
+        "Needs the balance after each transaction; without it the tag is not evaluated."
+      ]
+    },
+    {
+      "id": "overdrawn-months",
+      "name": "Overdrawn in several months",
+      "group": "financial-stress",
+      "description": "The balance went below zero in at least two recent months.",
+      "polarity": "burden",
+      "fields": [
+        "transactions.balance_after",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "overdrawn_months",
+            "description": "months where the balance went below zero",
+            "metric": "months_where",
+            "window": {
+              "months": 6
+            },
+            "monthly": {
+              "measure": "min_balance",
+              "op": "<",
+              "value": 0
+            },
+            "op": ">=",
+            "value": 2
+          }
+        ]
+      },
+      "reason": "balance went below zero in {overdrawn_months} of the last 6 complete months",
+      "limitations": [
+        "A support signal only: never for credit, pricing or collections.",
+        "Needs the balance after each transaction; without it the tag is not evaluated."
+      ]
+    },
+    {
+      "id": "returned-payments",
+      "name": "Returned payments",
+      "group": "financial-stress",
+      "description": "Had payments returned unpaid more than once recently.",
+      "polarity": "burden",
+      "fields": [
+        "transactions.category",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "returned",
+            "description": "payments returned unpaid",
+            "metric": "count",
+            "filter": {
+              "category": "returned_payment"
+            },
+            "window": {
+              "days": 180
+            },
+            "op": ">=",
+            "value": 2
+          }
+        ]
+      },
+      "reason": "{returned} payments returned unpaid in the last 180 days",
+      "limitations": [
+        "A support signal only: never for credit, pricing or collections.",
+        "Depends on the bank labelling returned payments."
+      ]
+    },
+    {
+      "id": "income-gap",
+      "name": "Income gap",
+      "group": "financial-stress",
+      "description": "Earned income arrived nearly every month before, but not in the last 2 months.",
+      "polarity": "burden",
+      "fields": [
+        "transactions.category",
+        "transactions.direction",
+        "transactions.posted_date"
+      ],
+      "rule": {
+        "all": [
+          {
+            "id": "earned_before",
+            "description": "months with earned income (salary or business income)",
+            "metric": "months_where",
+            "filter": {
+              "direction": "credit",
+              "category": [
+                "salary",
+                "business_income"
+              ]
+            },
+            "window": {
+              "months": 6,
+              "offset_months": 2
+            },
+            "monthly": {
+              "measure": "count",
+              "op": ">=",
+              "value": 1
+            },
+            "op": ">=",
+            "value": 5
+          },
+          {
+            "id": "earned_recent",
+            "description": "earned income credits",
+            "metric": "count",
+            "filter": {
+              "direction": "credit",
+              "category": [
+                "salary",
+                "business_income"
+              ]
+            },
+            "window": {
+              "months": 2
+            },
+            "op": "<=",
+            "value": 0
+          }
+        ]
+      },
+      "reason": "earned income in {earned_before} of the 6 months before, none in the last 2 complete months",
+      "limitations": [
+        "States only the pattern seen; it never says why income stopped.",
+        "A support signal only: never for credit, pricing or collections."
+      ]
     }
   ]
 }

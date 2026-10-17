@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1-draft",
   "pluginId": "customer-tagging",
-  "pluginVersion": "0.1.0",
+  "pluginVersion": "0.2.0",
   "scope": {
     "roles": [
       "employee"
@@ -33,16 +33,22 @@
       },
       "profile": "workbench",
       "resources": [
+        "taxonomy/counterparties.json",
+        "taxonomy/merchant_codes.json",
         "taxonomy/tags.json"
       ],
       "scripts": [
         "engine/__init__.py",
         "engine/__main__.py",
+        "engine/aggregate.py",
+        "engine/cards.py",
         "engine/data.py",
         "engine/evaluate.py",
         "engine/features.py",
+        "engine/lifecycle.py",
         "engine/output.py",
         "engine/policy.py",
+        "engine/reference.py",
         "engine/taxonomy.py",
         "engine/windows.py"
       ],
