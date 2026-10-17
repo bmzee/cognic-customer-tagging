@@ -24,12 +24,13 @@ Every answer describes behaviour recorded up to the as-of date. A tag is never a
 
 - **How the bank records it.** Either a `profiling_opt_out` column in the customer file (`true`, `yes`, `y` or `1`), or `"profiling_opt_out": "true"` in a `customer.updated` event. Any other non-empty value also counts as an opt-out: when in doubt the plugin stops profiling.
 - **What happens.** The customer's transactions, buckets, tags, checkpoints, history, event records and data notes are deleted from the store. Only the customer id and the date of the objection are kept (`opt_outs`), so that a later event cannot profile them again. Every later event for that customer is dropped without being stored.
+- **The date kept.** For an objection in a change feed, the event's date (the earliest, if there are several). A customer file carries no date, so an objection taken from it is recorded with the placeholder date `1900-01-01`, the date from which attributes in a customer file take effect.
 - **When.** At once, in the batch that carries the objection, whatever its date: allowed lateness never delays an opt-out.
-- **What staff see.** No profile: the reader answers as for an unknown customer, and the customer appears in no list or count.
-- **Where it is recorded.** The number of opted-out customers appears in each run's notes (`runs.notes`, `opted_out`).
-- **Tested.** `tests/test_opt_out.py`: a rebuild never stores an opted-out customer; following removes everything at once and drops later events; an opt-out beyond the allowed lateness is still honoured; the print-only engine skips the customer; and the incremental store still equals a batch rebuild when an opt-out arrives mid-stream.
+- **What staff see.** No profile: the reader answers as for an unknown customer, and the customer appears in no list or count. The print-only engine (`python3 -m engine --customer ...`) reports the id as unknown.
+- **Where it is recorded.** In each run's notes (`runs.notes`, `opted_out`): for a rebuild, how many customers in the store have opted out; for a follow batch, how many events in that batch were objections or were dropped because the customer had opted out.
+- **Tested.** `tests/test_opt_out.py`: a rebuild never stores an opted-out customer (its profile tables equal those of a store built as if the customer never existed); following removes everything at once and drops later events; an objection beyond the allowed lateness is still honoured; the print-only engine skips the customer. `tests/test_incremental.py`: the followed store still equals a batch rebuild when an objection arrives mid-stream.
 
-**Withdrawing an objection.** The plugin never lifts an opt-out by itself. If a customer withdraws it, the bank removes the flag from its records and rebuilds the store; profiling restarts from the data the bank then provides.
+**Withdrawing an objection.** The plugin never lifts an opt-out by itself. If a customer withdraws it, the bank removes the flag from its records and rebuilds the store from data that no longer carries the objection: a fresh customer file without the flag, or an event history from which the bridge has left the objection out. A rebuild from a history that still holds the objection applies it again. Profiling then restarts from the data the bank provides.
 
 | Field | Entry |
 | --- | --- |
