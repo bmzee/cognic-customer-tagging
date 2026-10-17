@@ -15,6 +15,8 @@ from tests.helpers import ROOT
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 from validate_safety_file import Validator, load_json  # noqa: E402
 
+WRITING_MODULES = {"build.py", "cards.py", "profile.py", "store.py"}
+
 
 def frontmatter(path):
     with open(path, encoding="utf-8") as handle:
@@ -53,9 +55,14 @@ class SafetyFile(unittest.TestCase):
         commands = sorted(f[:-3] for f in os.listdir(os.path.join(ROOT, "commands")) if f.endswith(".md"))
         self.assertEqual(sorted(s["id"] for s in self.safety["skills"]), skills)
         self.assertEqual(sorted(c["id"] for c in self.safety["commands"]), commands)
-        engine_files = sorted("engine/" + f for f in os.listdir(os.path.join(ROOT, "engine")) if f.endswith(".py"))
+        # The read-only skill runs the print-only engine. The modules that write
+        # (the store builder, and the card generator) are not part of it.
+        engine_files = sorted("engine/" + f for f in os.listdir(os.path.join(ROOT, "engine"))
+                              if f.endswith(".py") and f not in WRITING_MODULES)
         skill = self.safety["skills"][0]
         self.assertEqual(skill["scripts"], engine_files)
+        for name in WRITING_MODULES:
+            self.assertNotIn("engine/" + name, skill["scripts"])
         self.assertIn("taxonomy/tags.json", skill["resources"])
         for component in self.safety["skills"] + self.safety["commands"]:
             for path in [component["path"]] + component["resources"] + component["scripts"]:

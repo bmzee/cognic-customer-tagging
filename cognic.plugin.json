@@ -41,7 +41,6 @@
         "engine/__init__.py",
         "engine/__main__.py",
         "engine/aggregate.py",
-        "engine/cards.py",
         "engine/data.py",
         "engine/evaluate.py",
         "engine/features.py",

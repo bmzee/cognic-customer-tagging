@@ -32,6 +32,8 @@ A tag whose rule needs a missing field, such as an account opening date or a bal
 | `taxonomy/counterparties.json`, `taxonomy/merchant_codes.json` | Counterparty normalisation and ISO 18245-style merchant codes (synthetic) |
 | `engine/` | The rules engine, Python standard library only |
 | `engine/cards.py` | Generates the tag cards in `docs/tags/` |
+| `engine/build.py`, `engine/profile.py`, `engine/store.py` | The builder, how a customer's profile rows are written, and the SQLite profile store |
+| `engine/migrations/` | Numbered store migrations, applied in order and checked by checksum |
 | `data/generate.py` | Seeded synthetic data generator |
 | `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled scenarios' expected tags |
 | `tests/` | `unittest` suite; latest results in `tests/RESULTS.md` |
@@ -84,6 +86,18 @@ python3 -m engine.cards --out docs/tags
 
 Other options: `--as-of YYYY-MM-DD` tags as of a past date; the default is the latest transaction date in the file, never today's date. `--include-unmet` also lists the tags that did not apply, with their evidence.
 
+Build the profile store from the data copy (the only writer; the file appears only when complete):
+
+```bash
+python3 -m engine.build --rebuild --customers data/customers.csv --transactions data/transactions.csv --store out/profile.db
+```
+
+Print a canonical dump of the store; the same inputs and as-of date always give the same bytes:
+
+```bash
+python3 -m engine.build --export --store out/profile.db
+```
+
 Regenerate the synthetic data, which gives byte-identical files for the same seed:
 
 ```bash
@@ -97,6 +111,24 @@ python3 -m unittest discover -s tests -t .
 ```
 
 CI runs the same command on Python 3.9 to 3.13 on every push and pull request (`.github/workflows/tests.yml`). The draft safety-file schema is private and stays out of this repository and its CI, so CI skips that one test; run it locally with `COGNIC_SAFETY_SCHEMA` set (see `docs/OPEN-QUESTIONS.md`, Q1).
+
+## Profile store
+
+`python3 -m engine.build --rebuild` writes one SQLite file owned by the plugin. It never writes the bank's data and refuses to write over an input. The store holds:
+
+| Table | What it holds |
+| --- | --- |
+| `meta` | Store state (`building` until the last write, then `ready`), engine and taxonomy versions, taxonomy hash, as-of date, retention settings |
+| `customers` | The attributes rules read, and per-customer data notes |
+| `ledger` | Normalised transactions inside the retention window |
+| `features`, `feature_buckets` | What each feature means, and its aggregates per customer and calendar month, always recomputed from the ledger |
+| `tag_state` | Held tags with reason, rule, evidence and `entered_on`; suppressed tags; not-evaluated tags with the missing fields |
+| `checkpoint_tags`, `tag_history` | Tags held at each month-end checkpoint, and the entered and exited events between them |
+| `runs` | One row per builder run: as-of date, versions, taxonomy hash, input snapshot hash, counts, start and finish |
+
+**Retention.** The store keeps `history_months` (13) plus `lifecycle_months` (6) calendar months back from the as-of month. `history_months` covers the longest rule window, and the extra months let the oldest month-end checkpoint see a full window, so the store's history equals a batch run's. Nothing older is kept: tags need nothing older, and data minimisation forbids keeping it.
+
+**Safety.** A rebuild writes into a temporary file and renames it into place only when complete. `engine.store.open_store` refuses a file that is not SQLite or fails the integrity check, has unknown or changed migrations, is not marked ready, or was built from a different taxonomy hash. Readers open the store with `file:...?mode=ro`, so they cannot write.
 
 ## Data contract
 
