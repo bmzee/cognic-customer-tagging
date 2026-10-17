@@ -82,7 +82,7 @@ The property test (`tests/test_incremental.py`) generates a seeded event stream 
 - **`history_months`** (default 13: a year of complete months plus the current one) covers the longest rule window; the taxonomy loader refuses a window that reaches further back. The store keeps `history_months + lifecycle_months` calendar months back from the as-of month, so the oldest month-end checkpoint also sees a full window; older ledger rows and buckets are not kept.
 - **`lifecycle_months`** (default 6) is how many month-end checkpoints of tag history are kept. Each checkpoint costs one evaluation per customer in a rebuild, so it is kept short; older history lives in the store exports kept for audit.
 - The ledger keeps only the columns rules read: no names, no free-text descriptions, no account numbers. Protected-trait columns are never loaded.
-- A customer who objects is marked opted out: the builder removes their buckets, tags and history and keeps only the id and the flag, so a later event cannot re-profile them.
+- A customer who objects is marked opted out: the builder removes everything it holds about them (transactions, buckets, tags, history, event records and notes) and keeps only the id and the date of the objection (`opt_outs`, migration 0004), so a later event cannot re-profile them. The objection is honoured whenever it arrives, however late, and a rebuild gives the same store.
 
 ## Tags, evidence and lifecycle
 
