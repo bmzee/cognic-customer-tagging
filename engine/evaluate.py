@@ -373,3 +373,18 @@ def evaluate_customer(taxonomy, customer, txns, as_of, with_evidence=True):
     data = aggregate.CustomerData.from_rows(customer, [t for t in txns if t.posted_date <= as_of],
                                             taxonomy.specs)
     return evaluate_data(taxonomy, data, as_of, with_evidence)
+
+
+def explain_one(taxonomy, data, as_of, tag_id):
+    """The full TagResult for one tag, with every condition's evidence, and
+    the same state, exclusive-group outcome and missing fields that
+    evaluate_data gives it. Used to answer "why (not)?" on demand."""
+    if data.closed_on is not None and as_of >= data.closed_on:
+        return TagResult(taxonomy.by_id[tag_id], False, [], [], [], None, None)
+    ctx = features.Context(taxonomy, data, as_of)
+    results = _rule_states(taxonomy, ctx, False)
+    _apply_exclusive_groups(taxonomy, results)
+    full = _explain(taxonomy, ctx, tag_id)
+    decided = results[tag_id]
+    full.state, full.rule_state, full.suppressed_by = decided.state, decided.rule_state, decided.suppressed_by
+    return full
