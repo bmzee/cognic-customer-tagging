@@ -184,6 +184,149 @@ def _re_engaged(earlier):
     return case
 
 
+# -- cases for the tags added in taxonomy 2.0.0 -------------------------------
+
+def _retainer(months):
+    case = Case()
+    for ym in months:
+        case.add(on(ym, 6), 1000, "credit", "incoming", "business_income", "SYN-CLIENT-300")
+    return case
+
+
+def _monthly_purchases(months, plan):
+    """plan: [(category, count), ...] card purchases in each month."""
+    case = Case()
+    for ym in months:
+        day = 2
+        for category, count in plan:
+            for _ in range(count):
+                case.add(on(ym, day), 25, "debit", "card_pos", category, "SYN-MERCHANT-0020")
+                day += 1
+    return case
+
+
+def _big_ticket(amount):
+    case = Case()
+    for ym in EARLIER6:
+        case.add(on(ym, 10), 1000, "debit", "card_pos", "shopping", "SYN-MERCHANT-0021")
+    case.add(datetime.date(2026, 8, 12), amount, "debit", "card_pos", "shopping", "SYN-MERCHANT-0022", mcc="5732")
+    return case
+
+
+def _spending_change(recent):
+    case = Case()
+    for ym in EARLIER6:
+        case.add(on(ym, 10), 1000, "debit", "card_pos", "shopping", "SYN-MERCHANT-0023")
+    for ym in LAST3:
+        case.add(on(ym, 10), recent, "debit", "card_pos", "shopping", "SYN-MERCHANT-0023")
+    return case
+
+
+def _card_dormant(recent_cards):
+    case = Case()
+    for ym in EARLIER6:
+        case.add(on(ym, 10), 40, "debit", "card_pos", "groceries", "SYN-MERCHANT-0024")
+    for k in range(recent_cards):
+        case.add(on(LAST3[k], 10), 40, "debit", "card_pos", "groceries", "SYN-MERCHANT-0024")
+    case.monthly("transfer_out", 100, channel="mobile_app", months=LAST3, counterparty="SYN-PERSON-030")
+    return case
+
+
+def _app(per_month):
+    case = Case()
+    for ym, count in zip(LAST3, per_month):
+        for k in range(count):
+            case.add(on(ym, 5 + k), 20, "debit", "mobile_app", "transfer_out", "SYN-PERSON-031")
+    return case
+
+
+def _recent_abroad(second_days_ago):
+    case = Case()
+    case.add(days_ago(5), 60, "debit", "card_pos", "dining", "SYN-MERCHANT-0025", "EUR", "FR")
+    case.add(days_ago(second_days_ago), 60, "debit", "atm", "cash_withdrawal", "", "EUR", "FR")
+    return case
+
+
+def _travel(months):
+    case = Case()
+    for ym in months:
+        case.add(on(ym, 3), 400, "debit", "card_online", "", "SYN-MERCHANT-4511", mcc="4511")
+    return case
+
+
+def _buffer(month_end):
+    case = Case()
+    for ym in LAST6:
+        case.add(on(ym, 5), 1000, "credit", "incoming", "salary", "SYN-EMPLOYER-001", balance=month_end + 1000)
+        case.add(on(ym, 20), 1000, "debit", "card_pos", "shopping", "SYN-MERCHANT-0026", balance=month_end)
+    return case
+
+
+def _balance_growth(recent_end):
+    case = Case()
+    for ym in EARLIER6:
+        case.add(on(ym, 15), 10, "credit", "incoming", "transfer_in", "SYN-PERSON-032", balance=2000)
+    for ym in LAST3:
+        case.add(on(ym, 15), 10, "credit", "incoming", "transfer_in", "SYN-PERSON-032", balance=recent_end)
+    return case
+
+
+def _idle(purchases):
+    case = Case()
+    for ym in LAST6:
+        case.add(on(ym, 28), 2, "credit", "system", "interest", balance=10000)
+    for k in range(purchases):
+        case.add(days_ago(10 + 9 * k), 10, "debit", "card_pos", "groceries", "SYN-MERCHANT-0027", balance=10000)
+    return case
+
+
+def _bills(telecom_months):
+    case = Case()
+    case.monthly("utilities", 100, months=LAST6[2:], counterparty="SYN-UTILITY-01")
+    case.monthly("telecom", 50, months=telecom_months, day=12, counterparty="SYN-TELECOM-01")
+    return case
+
+
+def _active(months):
+    case = Case()
+    for ym in months:
+        case.add(on(ym, 10), 30, "debit", "card_pos", "groceries", "SYN-MERCHANT-0028")
+    return case
+
+
+def _salary_stopped(salary_months):
+    case = Case()
+    for ym in salary_months:
+        case.add(on(ym, 25), 3000, "credit", "incoming", "salary", "SYN-EMPLOYER-001")
+    for ym in LAST3:
+        case.add(on(ym, 10), 30, "debit", "card_pos", "groceries", "SYN-MERCHANT-0029")
+    return case
+
+
+def _low_balance(lows, low_value):
+    """One balance a month for the last 6 months; the first `lows` months are low."""
+    case = Case()
+    for i, ym in enumerate(LAST6):
+        value = low_value if i < lows else 500
+        case.add(on(ym, 12), 20, "debit", "card_pos", "groceries", "SYN-MERCHANT-0030", balance=value)
+        case.add(on(ym, 26), 20, "credit", "incoming", "transfer_in", "SYN-PERSON-033", balance=value + 400)
+    return case
+
+
+def _returned(second_days_ago):
+    case = Case()
+    for days in (10, second_days_ago):
+        case.add(days_ago(days), 15, "debit", "system", "returned_payment")
+    return case
+
+
+def _earned_then_gap(months):
+    case = Case()
+    for ym in months:
+        case.add(on(ym, 25), 2000, "credit", "incoming", "salary", "SYN-EMPLOYER-001")
+    return case
+
+
 CASES = {
     "salary-earner": (lambda: _salary(), lambda: _salary(skip=[(2026, 6)])),
     "irregular-income": (lambda: _earned([2000] * 7 + [4000] * 5), lambda: _earned([2000] * 8 + [4000] * 4)),
@@ -234,6 +377,31 @@ CASES = {
     "going-dormant": (lambda: _going_dormant(3), lambda: _going_dormant(4)),
     "dormant": (lambda: _dormant(datetime.date(2026, 4, 3)), lambda: _dormant(datetime.date(2026, 4, 4))),
     "re-engaged": (lambda: _re_engaged(1), lambda: _re_engaged(2)),
+    # taxonomy 2.0.0
+    "regular-other-income": (lambda: _retainer(LAST6[2:]), lambda: _retainer(LAST6[3:])),
+    "dining-out": (lambda: _monthly_purchases(LAST6[2:], [("dining", 4)]),
+                   lambda: _monthly_purchases(LAST6[2:], [("dining", 3)])),
+    "groceries-regular": (lambda: _monthly_purchases(LAST6[1:], [("groceries", 4)]),
+                          lambda: _monthly_purchases(LAST6[2:], [("groceries", 4)])),
+    "commuter": (lambda: _monthly_purchases(LAST6[2:], [("transport", 3), ("fuel", 3)]),
+                 lambda: _monthly_purchases(LAST6[2:], [("transport", 3), ("fuel", 2)])),
+    "big-ticket-purchase": (lambda: _big_ticket(1500), lambda: _big_ticket(1499.99)),
+    "spending-rising": (lambda: _spending_change(1300), lambda: _spending_change(1299)),
+    "card-dormant": (lambda: _card_dormant(0), lambda: _card_dormant(1)),
+    "mobile-active": (lambda: _app([2, 2, 2]), lambda: _app([2, 2, 1])),
+    "recent-traveller": (lambda: _recent_abroad(29), lambda: _recent_abroad(30)),
+    "travel-booker": (lambda: _travel([MONTHS[2], MONTHS[8]]), lambda: _travel([MONTHS[8]])),
+    "healthy-buffer": (lambda: _buffer(3000), lambda: _buffer(2990)),
+    "balance-growing": (lambda: _balance_growth(3000), lambda: _balance_growth(2990)),
+    "idle-balance": (lambda: _idle(6), lambda: _idle(7)),
+    "recurring-bills": (lambda: _bills(LAST6[2:]), lambda: _bills(LAST6[3:])),
+    "many-subscriptions": (lambda: _subscriptions(4), lambda: _subscriptions(3)),
+    "active-customer": (lambda: _active(LAST3), lambda: _active(LAST3[1:])),
+    "salary-moved-away": (lambda: _salary_stopped(MONTHS[4:9]), lambda: _salary_stopped(MONTHS[5:9])),
+    "repeated-low-balance": (lambda: _low_balance(3, 99.99), lambda: _low_balance(2, 99.99)),
+    "overdrawn-months": (lambda: _low_balance(2, -0.01), lambda: _low_balance(1, -0.01)),
+    "returned-payments": (lambda: _returned(179), lambda: _returned(180)),
+    "income-gap": (lambda: _earned_then_gap(MONTHS[5:10]), lambda: _earned_then_gap(MONTHS[6:10])),
 }
 
 # The saver rule has two branches; the second is tested separately.
