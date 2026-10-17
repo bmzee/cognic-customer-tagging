@@ -3,14 +3,25 @@
 The taxonomy file cannot switch these rules off: they live here, not in
 taxonomy/tags.json, so editing the rules cannot weaken the guard.
 
-* Protected traits are never used: no field, filter or category may refer to
-  religion, ethnicity, race, caste, gender, sex, disability, marital status or
-  pregnancy.
-* Age is excluded by default. Stage 1 has no age metric at all; adding one
+* Protected traits are never used: no field, filter, category or tag may
+  refer to religion, ethnicity, race, caste, national origin, gender, sex,
+  sexual orientation, disability, health, pregnancy, family or marital
+  status, or political opinion.
+* Age is excluded by default. There is no age metric at all; adding one
   needs a tag explicitly marked "bank policy decides" and an engine change.
 * Spending categories that act as proxies for those traits (health, charity
   and worship, childcare and school fees, pensions) cannot be used to
   include transactions in a rule.
+* No rule may select a specific country or currency: that is a proxy for
+  national origin, and for a remittance it is the corridor. Rules may only
+  ask "abroad or not" and "foreign currency or not", or count distinct
+  countries.
+* Restricted categories (the proxies above, and any category whose name
+  refers to a protected trait or to age) are collapsed into one opaque
+  "restricted" category the moment a transaction is read, so the profile
+  store never holds them. No rule may select "restricted".
+* Counterparties of kind "person" are pseudonymised when read: the store
+  keeps a stable token, never the person's name.
 * The engine reads only the columns listed here. Any other column in the
   input files, including a protected-trait column, is never loaded.
 """
@@ -20,12 +31,27 @@ import re
 PROTECTED_TOKENS = frozenset(
     {
         "religion", "religious", "faith", "ethnicity", "ethnic", "race",
-        "racial", "caste", "gender", "sex", "disability", "disabled",
-        "marital", "married", "pregnancy", "pregnant",
+        "racial", "caste", "nationality", "citizenship", "citizen",
+        "immigrant", "immigration", "migrant", "gender", "sex", "sexual",
+        "sexuality", "lgbt", "lgbtq", "disability", "disabled", "health",
+        "illness", "sick", "sickness", "diagnosis", "marital", "married",
+        "divorce", "divorced", "widow", "widowed", "spouse", "pregnancy",
+        "pregnant", "maternity", "paternity", "child", "children", "kids",
+        "family", "political", "politics",
     }
 )
 
-AGE_TOKENS = frozenset({"age", "birth", "birthday", "dob", "born"})
+# Multi-word traits whose single words are too common to refuse alone.
+PROTECTED_PHRASES = (
+    ("national", "origin"),
+    ("sexual", "orientation"),
+    ("trade", "union"),
+    ("country", "of", "birth"),
+)
+
+AGE_TOKENS = frozenset(
+    {"age", "birth", "birthday", "dob", "born", "retired", "retirement", "senior", "elderly", "minor"}
+)
 
 PROXY_CATEGORIES = frozenset(
     {
@@ -35,6 +61,8 @@ PROXY_CATEGORIES = frozenset(
         "pension", "disability_benefit", "maternity",
     }
 )
+
+RESTRICTED_CATEGORY = "restricted"
 
 # Columns the engine reads. Everything else is ignored on load.
 CUSTOMER_COLUMNS = (
@@ -55,6 +83,8 @@ TRANSACTION_COLUMNS = (
     "category",
     "counterparty",
     "txn_country",
+    "mcc",
+    "balance_after",
 )
 
 # Transaction fields a rule filter may test.
@@ -63,9 +93,8 @@ FILTER_FIELDS = frozenset(
         "direction",
         "category",
         "channel",
-        "currency",
         "counterparty",
-        "txn_country",
+        "counterparty_kind",
         "is_foreign_currency",
         "is_foreign_country",
     }
@@ -73,8 +102,17 @@ FILTER_FIELDS = frozenset(
 
 BOOLEAN_FILTER_FIELDS = frozenset({"is_foreign_currency", "is_foreign_country"})
 
-# Transaction fields a "distinct" metric may count.
-DISTINCT_FIELDS = frozenset({"counterparty", "txn_country", "currency"})
+# Fields a filter may never select specific values of (national origin, corridor).
+VALUE_SELECTION_REFUSED = {
+    "txn_country": "selects a specific country, a proxy for national origin; use is_foreign_country",
+    "currency": "selects a specific currency, a proxy for national origin or a remittance corridor; "
+                "use is_foreign_currency",
+    "counterparty_country": "selects the counterparty's country (a remittance corridor); never allowed",
+}
+
+# Transaction fields a "distinct" metric may count. Counting countries says
+# how many, never which.
+DISTINCT_FIELDS = frozenset({"counterparty", "txn_country"})
 
 _TOKEN_SPLIT = re.compile(r"[^a-z0-9]+")
 
@@ -84,11 +122,16 @@ def _tokens(name):
 
 
 def protected_reason(name):
-    """Return why a field or category name is refused, or None if allowed."""
+    """Return why a field, category or tag name is refused, or None if allowed."""
     tokens = _tokens(name)
     for token in tokens:
         if token in PROTECTED_TOKENS:
             return "refers to a protected trait ({!r}); tags never use protected traits".format(token)
+    for phrase in PROTECTED_PHRASES:
+        size = len(phrase)
+        for start in range(len(tokens) - size + 1):
+            if tuple(tokens[start:start + size]) == phrase:
+                return "refers to a protected trait ({!r}); tags never use protected traits".format(" ".join(phrase))
     for token in tokens:
         if token in AGE_TOKENS:
             return (
@@ -105,4 +148,13 @@ def proxy_category_reason(category):
         return reason
     if str(category).lower() in PROXY_CATEGORIES:
         return "is a proxy for a protected trait or for age; it cannot select transactions"
+    if str(category).lower() == RESTRICTED_CATEGORY:
+        return "is the restricted category that proxies are collapsed into; it cannot select transactions"
     return None
+
+
+def stored_category(category):
+    """The category as the engine keeps it: restricted categories collapse into one."""
+    if category and (category in PROXY_CATEGORIES or protected_reason(category)):
+        return RESTRICTED_CATEGORY
+    return category

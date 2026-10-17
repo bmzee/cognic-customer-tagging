@@ -1,14 +1,13 @@
 # Cognic customer tagging
 
-A plugin for Cognic that tags customers from their transactions and profile. Every tag is explained by the rule and the evidence that produced it.
+A plugin for Cognic that tags customers from their transactions and balances, keeps a live profile per customer and explains every tag with the rule and the evidence that produced it. It is built and proven here on synthetic data, and installed into Cognic once Cognic's plugin hosting is ready.
 
-**Status:** stage 1 is complete, as content and logic only:
-- the tag taxonomy and rules as data (`taxonomy/tags.json`, 33 tags);
-- a deterministic rules engine (`engine/`);
-- seeded synthetic data with expected tags for a labelled subset (`data/`), and tests (`tests/`);
-- a skill and a command that explain tags read-only, and a draft Cognic safety file.
-
-Later stages add scheduled runs and then real-time profiles, once Cognic's plugin hosting is available. See [DESIGN.md](DESIGN.md).
+**Status:** the full build runs as a stack of draft pull requests, one per phase; `docs/STATUS.md` has one row per phase. Built so far:
+- a taxonomy of 54 behaviour-based tags in 10 groups, with a version and a content hash (`taxonomy/tags.json`), plus a counterparty normalisation table and a merchant code table;
+- a deterministic rules engine (`engine/`) that evaluates tags from per-month feature buckets, with tag lifecycle at month-end checkpoints;
+- seeded synthetic data with expected tags for 62 labelled scenarios (`data/`), and tests (`tests/`);
+- one generated card per tag (`docs/tags/`);
+- research notes and the target design ([DESIGN.md](DESIGN.md), `docs/research/`).
 
 ## What it does
 
@@ -16,9 +15,10 @@ The engine reads `customers.csv` and `transactions.csv` and applies the rules in
 
 - a **reason** in plain words, for example "salary credited monthly, 6 of last 6 months, about 3,000.00 USD a month";
 - the **rule**, for example "months with a salary credit, in the last 6 complete months: at least 6";
-- the **evidence**: every number the rule looked at, its threshold, the dates it covered and the months that counted.
+- the **evidence**: every number the rule looked at, its threshold, the dates it covered and the months that counted;
+- its **lifecycle**: `entered_on`, the first month-end check of the current run at which the tag held, or "new this month" when it started after the last month end.
 
-A tag whose rule needs a missing field, such as an account opening date, is reported as "not evaluated" with the missing field. It is never guessed.
+A tag whose rule needs a missing field, such as an account opening date or a balance, is reported as "not evaluated" with the missing field. It is never guessed. Lifecycle stages (new, active, going dormant, dormant, re-engaged) form one exclusive group: the first that holds wins, and the others are reported as suppressed.
 
 ## Layout
 
@@ -28,13 +28,16 @@ A tag whose rule needs a missing field, such as an account opening date, is repo
 | `skills/customer-tagging/SKILL.md` | How the agent runs the engine and explains tags, read-only |
 | `commands/tag-customers.md` | Command that loads the skill |
 | `cognic.plugin.json` | Draft Cognic safety file |
-| `taxonomy/tags.json` | The tags: fields, rules, thresholds, windows and reasons |
+| `taxonomy/tags.json` | The tags: groups, fields, rules, thresholds, windows, reasons, polarity, limitations, version, hash and changelog |
+| `taxonomy/counterparties.json`, `taxonomy/merchant_codes.json` | Counterparty normalisation and ISO 18245-style merchant codes (synthetic) |
 | `engine/` | The rules engine, Python standard library only |
+| `engine/cards.py` | Generates the tag cards in `docs/tags/` |
 | `data/generate.py` | Seeded synthetic data generator |
-| `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled subset's expected tags |
+| `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled scenarios' expected tags |
 | `tests/` | `unittest` suite; latest results in `tests/RESULTS.md` |
 | `tools/validate_safety_file.py` | Standard-library validator for the safety file |
 | `.github/workflows/tests.yml` | CI: runs the tests on Python 3.9 to 3.13 |
+| `docs/tags/` | One generated card per tag, and an index |
 | `docs/STATUS.md`, `docs/OPEN-QUESTIONS.md` | Build status per phase, and the questions only Cognic's hosting can settle |
 | `DESIGN.md` | Target architecture: builder, profile store, reader tool server, skills and agent; why incremental equals batch; decisions from the research |
 | `docs/research/` | Research notes on eight topics, each ending with what we adopt and reject, and `SOURCES.md` |
@@ -67,6 +70,18 @@ List every tag with its rule:
 python3 -m engine --list-tags
 ```
 
+Print the content hash of the taxonomy and its reference tables (a rule change needs a new version, this hash and a changelog entry in `tags.json`):
+
+```bash
+python3 -m engine --taxonomy-hash
+```
+
+Regenerate the tag cards after a taxonomy change (a test fails while they are stale):
+
+```bash
+python3 -m engine.cards --out docs/tags
+```
+
 Other options: `--as-of YYYY-MM-DD` tags as of a past date; the default is the latest transaction date in the file, never today's date. `--include-unmet` also lists the tags that did not apply, with their evidence.
 
 Regenerate the synthetic data, which gives byte-identical files for the same seed:
@@ -87,71 +102,108 @@ CI runs the same command on Python 3.9 to 3.13 on every push and pull request (`
 
 `customers.csv` needs `customer_id`. The engine also reads `account_open_date` for tenure rules, `home_country` for "abroad" rules and `home_currency`, which defaults to the base currency. It reads no other column. Names, account numbers and any protected-trait column are ignored and never loaded.
 
-`transactions.csv` needs `customer_id`, `posted_date` and `amount`. It may also have `txn_id`, `currency`, `direction`, `channel`, `category`, `counterparty` and `txn_country`.
+`transactions.csv` needs `customer_id`, `posted_date` and `amount`. It may also have `txn_id`, `currency`, `direction`, `channel`, `category`, `counterparty`, `txn_country`, `mcc` (a four-digit merchant category code) and `balance_after` (the balance after the transaction, in the home currency).
 
 - **Signs.** With a `direction` of credit or debit, the amount may be unsigned, or signed with money out negative. Without a direction, a negative amount is a debit and a positive amount a credit. A negative credit is a contradiction and is skipped.
-- **Currency.** Amounts are converted to the base currency with the fixed rate table in `tags.json`. An empty currency means the customer's home currency. An unknown currency is skipped, never guessed.
-- **Bad rows.** Rows with a bad date, amount or direction, a zero amount, an unknown customer or a duplicate `txn_id` are skipped. Every skip is counted by reason in the output's data notes.
+- **Currency.** Amounts are converted to the base currency with the fixed rate table in `tags.json` and kept as whole cents. An empty currency means the customer's home currency. An unknown currency is skipped, never guessed.
+- **Categories.** The bank's own category wins. When it is empty, the merchant code table fills it in; otherwise it is "uncategorized". Health, worship, charity, childcare, schooling and pension categories are collapsed into one opaque `restricted` category when a row is read, so they are never stored, and no rule may select it.
+- **Counterparties.** A raw counterparty is cleaned and mapped with `taxonomy/counterparties.json` to a canonical name and a kind (employer, business, person, merchant, biller, financial, own account, unknown), so "SYN STREAMCO*0412" and "SYN-STREAMCO" are one merchant. A person is kept only as a pseudonymous token.
+- **Balances.** Rules that read the balance need `balance_after`; without it they are "not evaluated". A month with no transaction carries the previous closing balance.
+- **Bad rows.** Rows with a bad date, amount, direction or balance, a zero amount, an unknown customer or a duplicate `txn_id` are skipped. Every skip is counted by reason in the output's data notes.
 - **Time windows.** Day windows end on the as-of date. Month windows use complete calendar months, so a mid-month as-of date does not count the partial month.
 
 The generated data contains four deliberately malformed rows so the data notes have something to show.
 
 ## The tags
 
-Thresholds are illustrative starting points, and bank policy sets the final values. `python3 -m engine --list-tags` prints every rule in full.
+Thresholds are illustrative starting points, and bank policy sets the final values. `python3 -m engine --list-tags` prints every rule in full, and `docs/tags/` has a card for each tag.
 
 | Group | Tag | Id | What it means |
 | --- | --- | --- | --- |
-| income | Salary earner | `salary-earner` | Receives a salary credit every month. |
-| income | Irregular income | `irregular-income` | Earns income in most months, but the amount swings a lot from month to month and there is no steady salary. |
-| income | Several income sources | `multi-source-income` | Received earned income from several different payers recently. |
-| income | Business or freelance income | `business-income` | Receives business or freelance income in most months. |
-| income | Remittance receiver | `remittance-receiver` | Regularly receives money sent from abroad. |
-| income | Rising income | `rising-income` | Average monthly earned income in the last 3 months is clearly above the 6 months before. |
-| income | Falling income | `falling-income` | Average monthly earned income in the last 3 months is well below the 6 months before. |
-| income | Large recent inflow | `large-recent-inflow` | Received a single large credit recently, several times the usual monthly money in. |
-| income | High monthly inflow | `high-inflow` | Money coming in averages a high amount per month. |
-| payments | Regular bill payer | `bill-payer` | Pays utility or phone bills nearly every month. |
-| payments | Rent payer | `rent-payer` | Pays rent nearly every month. |
-| payments | Loan repayer | `loan-repayer` | Makes loan repayments nearly every month. |
-| payments | Insurance payer | `insurance-payer` | Pays insurance premiums regularly (monthly or quarterly). |
-| payments | Remittance sender | `remittance-sender` | Regularly sends money abroad. |
-| payments | Frequent person-to-person transfers | `p2p-transfer-active` | Sends or receives many transfers to and from other people. |
-| payments | Subscription user | `subscription-user` | Pays several different subscriptions. |
-| payments | Frequent bank charges | `frequent-fee-payer` | Pays bank charges often; a better-suited account might avoid them. |
-| spending | Card-heavy spender | `card-heavy-spender` | Most spending is by card. |
-| spending | Online shopper | `online-shopper` | Makes frequent online card purchases. |
-| spending | High cash user | `high-cash-user` | Takes out a large part of spending as cash. |
-| spending | Foreign-currency spender | `foreign-currency-spender` | A large part of card spending is in foreign currencies. |
-| channels | Digital-first | `digital-first` | Does almost all self-service banking in the app, online banking or with online card payments. |
-| channels | Branch-reliant | `branch-reliant` | Does much of their self-service banking in a branch. |
-| channels | Regular cash depositor | `cash-depositor` | Deposits cash in most months. |
-| saving | Saver | `saver` | Regularly moves money to savings, or keeps a good part of what comes in. |
-| saving | Investor | `investor` | Buys investments. |
-| saving | Spending exceeds money in | `spending-exceeds-inflow` | Spent clearly more than came in during most recent months. |
-| travel | Frequent traveller | `frequent-traveller` | Uses a card or ATM abroad in several different months. |
-| engagement | New customer | `new-customer` | Opened their account recently. |
-| engagement | Established customer | `established-customer` | Has banked here for years and is active nearly every month. |
-| engagement | Going dormant | `going-dormant` | Self-service activity has dropped sharply compared with before. |
-| engagement | Dormant | `dormant` | No self-service activity for six months. |
-| engagement | Re-engaged | `re-engaged` | Became active again after a long quiet period. |
+| Income | Salary earner | `salary-earner` | Receives a salary credit every month. |
+| Income | Regular non-salary income | `regular-other-income` | Receives regular income other than salary from the same business payer. |
+| Income | Irregular income | `irregular-income` | Earns income in most months, but the amount swings a lot from month to month and there is no steady salary. |
+| Income | Several income sources | `multi-source-income` | Received earned income from several different payers recently. |
+| Income | Business or freelance income | `business-income` | Receives business or freelance income in most months. |
+| Income | Remittance receiver | `remittance-receiver` | Regularly receives money sent from abroad. |
+| Income | Rising income | `rising-income` | Average monthly earned income in the last 3 months is clearly above the 6 months before. |
+| Income | Falling income | `falling-income` | Average monthly earned income in the last 3 months is well below the 6 months before. |
+| Income | Large recent inflow | `large-recent-inflow` | Received a single large credit recently, several times the usual monthly money in. |
+| Income | High monthly inflow | `high-inflow` | Money coming in averages a high amount per month. |
+| Spending pattern | High cash user | `high-cash-user` | Takes out a large part of spending as cash. |
+| Spending pattern | Eats out often | `dining-out` | Pays at restaurants and cafés several times a month, most months. |
+| Spending pattern | Regular grocery shopper | `groceries-regular` | Buys groceries several times a month, nearly every month. |
+| Spending pattern | Regular commuter | `commuter` | Pays for transport or fuel many times a month. |
+| Spending pattern | Recent large purchase | `big-ticket-purchase` | Made a single card purchase recently that is large compared with usual card spending. |
+| Spending pattern | Spending rising | `spending-rising` | Average monthly spending in the last 3 months is clearly above the 6 months before. |
+| Card use | Card-heavy spender | `card-heavy-spender` | Most spending is by card. |
+| Card use | Online shopper | `online-shopper` | Makes frequent online card purchases. |
+| Card use | Foreign-currency spender | `foreign-currency-spender` | A large part of card spending is in foreign currencies. |
+| Card use | Card no longer used | `card-dormant` | Used a card regularly before, but not in the last 3 complete months. |
+| Channel and digital use | Digital-first | `digital-first` | Does almost all self-service banking in the app, online banking or with online card payments. |
+| Channel and digital use | Branch-reliant | `branch-reliant` | Does much of their self-service banking in a branch. |
+| Channel and digital use | Regular cash depositor | `cash-depositor` | Deposits cash in most months. |
+| Channel and digital use | Active in the mobile app | `mobile-active` | Uses the mobile app every month and often. |
+| Travel | Frequent traveller | `frequent-traveller` | Uses a card or ATM abroad in several different months. |
+| Travel | Travelled recently | `recent-traveller` | Used a card or ATM abroad in the last 30 days. |
+| Travel | Books travel | `travel-booker` | Pays for flights, hotels or travel agents in several months of the year. |
+| Savings and balances | Saver | `saver` | Regularly moves money to savings, or keeps a good part of what comes in. |
+| Savings and balances | Investor | `investor` | Buys investments. |
+| Savings and balances | Keeps a healthy buffer | `healthy-buffer` | Keeps an average month-end balance of at least three months of spending, and never goes overdrawn. |
+| Savings and balances | Balance growing | `balance-growing` | The average month-end balance of the last 3 months is well above the 6 months before. |
+| Savings and balances | Large balance, little activity | `idle-balance` | Keeps a large balance but uses the account little; a savings conversation may help. |
+| Bills and subscriptions | Regular bill payer | `bill-payer` | Pays utility or phone bills nearly every month. |
+| Bills and subscriptions | Rent payer | `rent-payer` | Pays rent nearly every month. |
+| Bills and subscriptions | Loan repayer | `loan-repayer` | Makes loan repayments nearly every month. |
+| Bills and subscriptions | Insurance payer | `insurance-payer` | Pays insurance premiums regularly (monthly or quarterly). |
+| Bills and subscriptions | Subscription user | `subscription-user` | Pays several different subscriptions. |
+| Bills and subscriptions | Several recurring bills | `recurring-bills` | Pays at least two bills that recur every month at a steady amount. |
+| Bills and subscriptions | Many subscriptions | `many-subscriptions` | Pays four or more subscriptions that recur every month. |
+| Transfers | Remittance sender | `remittance-sender` | Regularly sends money abroad. |
+| Transfers | Frequent person-to-person transfers | `p2p-transfer-active` | Sends or receives many transfers to and from other people. |
+| Engagement and lifecycle | New customer | `new-customer` | Opened their account recently. |
+| Engagement and lifecycle | Active | `active-customer` | Uses the account for self-service banking every month. |
+| Engagement and lifecycle | Going dormant | `going-dormant` | Self-service activity has dropped sharply compared with before. |
+| Engagement and lifecycle | Dormant | `dormant` | No self-service activity for six months. |
+| Engagement and lifecycle | Re-engaged | `re-engaged` | Became active again after a long quiet period. |
+| Engagement and lifecycle | Established customer | `established-customer` | Has banked here for years and is active nearly every month. |
+| Engagement and lifecycle | Salary credits stopped | `salary-moved-away` | Received a salary nearly every month before, none in the last 2 months, but still uses the account. |
+| Financial-stress signals | Spending exceeds money in | `spending-exceeds-inflow` | Spent clearly more than came in during most recent months. |
+| Financial-stress signals | Frequent bank charges | `frequent-fee-payer` | Pays bank charges often; a better-suited account might avoid them. |
+| Financial-stress signals | Repeatedly low balance | `repeated-low-balance` | The balance fell below 100 in several recent months. |
+| Financial-stress signals | Overdrawn in several months | `overdrawn-months` | The balance went below zero in at least two recent months. |
+| Financial-stress signals | Returned payments | `returned-payments` | Had payments returned unpaid more than once recently. |
+| Financial-stress signals | Income gap | `income-gap` | Earned income arrived nearly every month before, but not in the last 2 months. |
 
 ## Rule language
 
-Each tag's `rule` is a tree of `all` and `any` nodes over conditions. A condition names a metric, a transaction filter, a time window, an operator and a threshold. The metrics are `count`, `sum`, `max`, `count_per_month`, `sum_per_month`, `months_where`, `distinct`, `share`, `ratio`, `tenure_days` and `tag`; the last lets one tag depend on another. The loader refuses unknown keys, fields and metrics. It also checks that each tag's declared `fields` equal the fields its rule actually reads, and that every placeholder in the reason exists. The engine's docstrings describe each metric.
+Each tag's `rule` is a tree of `all` and `any` nodes over conditions. A condition names a metric, a transaction filter, a time window, an operator and a threshold. The metrics are:
+
+- `count`, `sum`, `max`, `count_per_month`, `sum_per_month`: over the transactions a filter selects in a window;
+- `months_where`: how many months in a month window meet a monthly test (count, sum, net flow, net-flow ratio, deviation from the usual month, lowest or closing balance);
+- `distinct`: how many distinct counterparties or countries (never which);
+- `share` and `ratio`: a part against a whole, or a recent level against an earlier one, with a minimum denominator for thin history;
+- `recurring`: how many recurring streams (one payee, regular every `period_months`, in at least `min_occurrences` months, still current, each month's average payment within `amount_tolerance` of the usual amount or within `amount_floor`);
+- `days_since_last`, `tenure_days`, `balance` (lowest, latest or average month-end) and `tag`, which lets one tag depend on another.
+
+The loader refuses unknown keys, fields and metrics. It checks that each tag's declared `fields` equal the fields its rule actually reads, that every placeholder in the reason exists, that every window fits in `history_months`, and that the stored `content_hash` matches the content. A rule change therefore needs a new `taxonomy_version`, a new hash and a changelog entry (`python3 -m engine --taxonomy-hash` prints the hash).
+
+The engine computes per-month aggregates (feature buckets) for each customer, feature and calendar month, and answers every window from them; a window edge that cuts a month in two is answered from that month's transactions. The same buckets will be kept in the profile store and updated incrementally (see [DESIGN.md](DESIGN.md)).
 
 ## Fairness and privacy rules
 
 These hold everywhere in the plugin. The engine enforces them in code, in `engine/policy.py`, so editing `tags.json` cannot switch them off.
 
-- **Behaviour, never protected traits.** Tags come from what customers do with their accounts. No field, filter or category may refer to religion, ethnicity, race, caste, gender, sex, disability, marital status or pregnancy.
+- **Behaviour, never protected traits.** Tags come from what customers do with their accounts. No field, filter, category or tag name may refer to religion, ethnicity, race, caste, national origin, gender, sex, sexual orientation, disability, health, pregnancy, family or marital status, or political opinion.
 - **No age by default.** No tag uses age or date of birth, and the engine refuses age fields. Age could only be added by a tag explicitly marked "bank policy decides" plus an engine change.
-- **No proxies.** Categories that stand in for protected traits or age cannot select transactions: health and medical spending, charity and worship payments, childcare and school fees, and pension income. Customer names are never read.
+- **No proxies.** Categories that stand in for protected traits or age are collapsed into `restricted` when read and cannot select transactions: health and medical spending, charity and worship payments, childcare and school fees, and pension income. No rule may select a specific country or currency, so remittance tags use amounts and frequency only, never the corridor, and travel tags say "abroad", never where. Customer names are never read, and the people a customer pays are pseudonymised.
+- **Patterns, never causes.** A tag says what was seen ("salary credits stopped"), never why.
 - **Explainable, no scores.** Every tag shows its rule and the evidence that produced it. There are no unexplained scores and no combined rating.
+- **Intended use and prohibited uses.** Tags are for service and personalisation by a relationship manager. They must never be used for credit decisions, pricing, fraud or AML decisions, or any automated decision with legal or similarly significant effect; financial-stress tags are support signals only. Every tag card says so.
 - **Read-only.** The engine never modifies its inputs. Without `--out-dir` it writes nothing at all, and the skill always runs it that way.
 - **Minimal data.** Only the columns listed in the data contract are loaded.
 - **Synthetic data only** in this repository. There is no real customer data, and no bank names, hosts or logins.
-- **No model names** appear in code or configuration.
+- **No model names** appear in code, configuration or docs.
 
 ## Cognic safety file
 
@@ -159,7 +211,7 @@ These hold everywhere in the plugin. The engine enforces them in code, in `engin
 
 - the read effect only, with consent class "none";
 - data classes "confidential" and "sensitive";
-- one skill and one command, both at the "instruction" tier with the "workbench" profile, because the skill runs the engine's scripts;
+- one skill and one command, both at the "instruction" tier with the "workbench" profile, because the skill runs the engine's scripts (every `engine/*.py` file) with the taxonomy and its two reference tables as resources;
 - no hooks, servers, tools, agents or dependencies.
 
 Points to settle when plugin hosting lands:

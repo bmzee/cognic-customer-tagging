@@ -8,9 +8,12 @@ Writes, next to this script by default:
 
 Everything is invented: names are "Synthetic Customer NNNN", accounts and
 counterparties are "SYN-..." identifiers, and amounts are generated. No real
-person, bank, host or login appears anywhere.
+person, bank, host or login appears anywhere. Card rows carry an ISO
+18245-style merchant code; some counterparties are spelt the way a bank feed
+spells them ("SYN STREAMCO*0412") so the normalisation table is exercised;
+and some customers carry the balance after each transaction.
 
-The first customers (C0001 to C0042) are labelled scenarios. Each is built
+The first customers (C0001 to C0062) are labelled scenarios. Each is built
 from a small number of behaviours, and its expected tags were worked out
 from the rules by hand, not copied from the engine's output. The rest are
 random background customers with no labels. A few deliberately malformed
@@ -48,7 +51,38 @@ PURCHASE_DAYS = {1: [14], 2: [8, 20], 3: [6, 14, 22], 4: [5, 12, 19, 26], 5: [4,
 
 CUSTOMER_COLUMNS = ["customer_id", "display_name", "account_id", "account_open_date", "home_country", "home_currency"]
 TRANSACTION_COLUMNS = ["txn_id", "customer_id", "account_id", "posted_date", "amount", "currency", "direction",
-                       "channel", "category", "counterparty", "txn_country"]
+                       "channel", "category", "counterparty", "txn_country", "mcc", "balance_after"]
+CARD_MCC = {"groceries": "5411", "dining": "5812", "shopping": "5311", "fuel": "5541", "transport": "4111",
+            "entertainment": "7832", "subscription": "5815", "travel": "4511", "cash_withdrawal": "6011"}
+# Tags whose every condition reads the balance: customers without balance data
+# cannot be evaluated for them. (idle-balance also counts activity, so it is
+# simply not met for an active customer; see V2_NOT_EVALUATED.)
+BALANCE_TAGS = ["balance-growing", "healthy-buffer", "overdrawn-months", "repeated-low-balance"]
+
+# Tags added in taxonomy 2.0.0 that the stage 1 scenarios also get, worked out
+# by hand from each scenario's behaviour.
+V2_EXPECTED = {
+    # Self-service activity in each of the last 3 complete months; not given
+    # where a higher lifecycle stage (new, going dormant, re-engaged, dormant) wins.
+    "active-customer": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+                        26, 27, 28, 29, 30, 33, 34, 38, 39, 40, 41, 42],
+    # Household spending follows the 40% salary rise.
+    "spending-rising": [7],
+    # Salary in every month to June, none in August and September, account still used.
+    "salary-moved-away": [8],
+    # Rent, utility and phone paid at steady amounts every month.
+    "recurring-bills": [11],
+    # Three or more app payments every month: 9 or more in 90 days.
+    "mobile-active": [17, 18, 38],
+    # Card used from October to December only.
+    "card-dormant": [35],
+}
+# Not evaluated in v2: idle-balance for customers with 6 or fewer self-service
+# transactions in 90 days and no balance data; recent-traveller without a home country.
+V2_NOT_EVALUATED = {
+    "idle-balance": [3, 4, 21, 31, 32, 35, 36, 42],
+    "recent-traveller": [41],
+}
 
 
 class Rng(object):
@@ -88,7 +122,7 @@ def ago(days):
 
 class Person(object):
     def __init__(self, gen, number, open_date, scenario=None, expected=None, expected_not_evaluated=None,
-                 home_country=HOME_COUNTRY, home_currency=HOME_CURRENCY, clip=False):
+                 home_country=HOME_COUNTRY, home_currency=HOME_CURRENCY, clip=False, opening_balance=None):
         self.gen = gen
         self.clip = clip
         self.rng = gen.rng
@@ -101,17 +135,21 @@ class Person(object):
         self.scenario = scenario
         self.expected = expected
         self.expected_not_evaluated = expected_not_evaluated
+        self.opening_balance = None if opening_balance is None else money(opening_balance)
         self.rows = []
         gen.people.append(self)
 
     # -- primitives ---------------------------------------------------------
-    def add(self, when, amount, direction, channel, category, counterparty="", currency="USD", country=HOME_COUNTRY):
+    def add(self, when, amount, direction, channel, category, counterparty="", currency="USD", country=HOME_COUNTRY,
+            mcc=None):
         if self.clip and self.open_date is not None and when < self.open_date:
             return  # background customers simply have no activity before opening
+        if mcc is None:
+            mcc = CARD_MCC.get(category, "") if channel in ("card_pos", "card_online", "atm") else ""
         self.rows.append({
             "date": when, "amount": money(amount), "direction": direction, "channel": channel,
             "category": category, "counterparty": counterparty, "currency": currency, "country": country,
-            "seq": len(self.gen.rows_in_order),
+            "mcc": mcc, "seq": len(self.gen.rows_in_order),
         })
         self.gen.rows_in_order.append((self, self.rows[-1]))
 
@@ -470,10 +508,180 @@ def scenarios(g):
     p.salary(3000)
     p.household(0.90)
 
-    # Light, balanced activity funded by a monthly transfer: no tag applies.
-    p = Person(g, 42, ago(500), "light balanced activity, no tag expected", [])
+    # Light, balanced activity funded by a monthly transfer: only the active tag applies.
+    p = Person(g, 42, ago(500), "light balanced activity, only the active tag", [])
     p.monthly("transfer_in", 500, "credit", "incoming", day=2, counterparty="SYN-PERSON-070")
     p.household(0.88, n=2)
+
+    # ---- Scenarios for the tags added in taxonomy 2.0.0 ------------------
+
+    # A retainer from one business client every month, no salary.
+    p = Person(g, 43, ago(T), "monthly retainer from one business client",
+               ["active-customer", "business-income", "regular-other-income"])
+    p.monthly("business_income", 1800, "credit", "incoming", day=6, counterparty="SYN-CLIENT-100")
+    p.household(0.85)
+
+    # Five restaurant and five grocery card payments every month.
+    p = Person(g, 44, ago(T), "eats out and buys groceries every week",
+               ["active-customer", "card-heavy-spender", "dining-out", "groceries-regular", "salary-earner"])
+    p.salary(3500)
+    for ym in MONTHS:
+        p.spend(ym, 300, n=5, category="dining", days=[3, 9, 15, 21, 27])
+        p.spend(ym, 500, n=5, category="groceries", days=[2, 8, 14, 20, 26])
+    p.household(0.90, n=2)
+
+    # Seven transport and fuel payments every month.
+    p = Person(g, 45, ago(T), "commutes by transport and car",
+               ["active-customer", "card-heavy-spender", "commuter", "salary-earner"])
+    p.salary(3000)
+    for ym in MONTHS:
+        p.spend(ym, 160, n=4, category="transport", days=[3, 10, 17, 24])
+        p.spend(ym, 180, n=3, category="fuel", days=[6, 13, 20])
+    p.household(0.88, n=1)
+
+    # One 2,600 electronics purchase in August, against 900 a month of card spending.
+    p = Person(g, 46, ago(T), "one large purchase in August", ["active-customer", "big-ticket-purchase", "salary-earner"])
+    p.salary(4000)
+    p.monthly("transfer_out", 2400, "debit", "mobile_app", day=27, counterparty="SYN-PERSON-020")
+    for ym in MONTHS:
+        p.spend(ym, 900, n=3)
+    p.add(datetime.date(2026, 8, 12), 2600, "debit", "card_pos", "shopping", "SYN-MERCHANT-0901", mcc="5732")
+
+    # Monthly spending rises from 2,500 to 3,500 for the last 3 months (140%).
+    p = Person(g, 47, ago(T), "spending up 40% in the last 3 months", ["active-customer", "salary-earner", "spending-rising"])
+    p.salary(2800)
+    p.monthly("transfer_out", 1500, "debit", "mobile_app", day=27, counterparty="SYN-PERSON-021")
+    for ym in MONTHS:
+        p.spend(ym, 2000 if ym in LAST3 else 1000)
+
+    # Card used every month until June, then everything moves to the app.
+    p = Person(g, 48, ago(T), "stopped using the card after June",
+               ["active-customer", "card-dormant", "mobile-active", "salary-earner"])
+    p.salary(3000)
+    p.household(0.88, months=MONTHS[:9])
+    p.household(0.88, months=LAST3, channel="mobile_app")
+
+    # Two bills a month whose amounts swing by up to 40%: bills, but not steady
+    # enough to count as recurring streams (near miss).
+    p = Person(g, 49, ago(T), "bills whose amounts swing (near miss for recurring bills)",
+               ["active-customer", "bill-payer", "salary-earner"])
+    p.salary(3000)
+    swings = [100, 140, 70, 125, 60, 135, 75, 130, 65, 140, 70, 130]
+    for ym, amount in zip(MONTHS, swings):
+        p.add(on(ym, 9), amount, "debit", "internet_banking", "utilities", "SYN-UTILITY-30")
+        p.add(on(ym, 11), amount / 2, "debit", "internet_banking", "telecom", "SYN-TELECOM-30")
+    p.household(0.90)
+
+    # Four card payments abroad in September.
+    p = Person(g, 50, ago(T), "a trip abroad this month", ["active-customer", "recent-traveller", "salary-earner"])
+    p.salary(4000)
+    p.household(0.88)
+    p.spend((2026, 9), 450, n=3, days=[10, 12, 14], currency="EUR", country="FR")
+    p.add(datetime.date(2026, 9, 11), 100, "debit", "atm", "cash_withdrawal", "", "EUR", "FR")
+
+    # Flights and hotels in February, June and September, sent with a merchant
+    # code but no category: the code table fills the category in.
+    p = Person(g, 51, ago(T), "books flights and hotels", ["active-customer", "salary-earner", "travel-booker"])
+    p.salary(4500)
+    p.household(0.85)
+    for when, amount, mcc in ((datetime.date(2026, 2, 3), 600, "4511"), (datetime.date(2026, 2, 5), 450, "7011"),
+                              (datetime.date(2026, 6, 8), 700, "4511"), (datetime.date(2026, 9, 2), 300, "7011")):
+        p.add(when, amount, "debit", "card_online", "", "SYN-MERCHANT-{}".format(mcc), mcc=mcc)
+
+    # Opening balance 15,000 and keeps 15% a month: a buffer of seven months
+    # of spending, but growing too slowly for "balance growing".
+    p = Person(g, 52, ago(T), "keeps a healthy buffer", ["active-customer", "healthy-buffer", "salary-earner"],
+               opening_balance=15000)
+    p.salary(3000)
+    p.household(0.85)
+
+    # Keeps half of a 3,000 salary every month from an opening 1,500: the
+    # month-end balance grows by 60% against the 6 months before.
+    p = Person(g, 53, ago(T), "balance growing fast",
+               ["active-customer", "balance-growing", "healthy-buffer", "salary-earner", "saver"],
+               opening_balance=1500)
+    p.salary(3000)
+    p.household(0.50)
+
+    # 25,000 on the account, one small card payment every other month and
+    # quarterly interest.
+    p = Person(g, 54, ago(T), "large balance, little activity", ["idle-balance"], opening_balance=25000)
+    for ym in MONTHS[::2]:
+        p.add(on(ym, 14), 60, "debit", "card_pos", "groceries", "SYN-MERCHANT-0954")
+    for when in (datetime.date(2025, 12, 31), datetime.date(2026, 3, 31), datetime.date(2026, 6, 30),
+                 datetime.date(2026, 9, 30)):
+        p.add(when, "31.25", "credit", "system", "interest")
+
+    # Rent, a utility and a phone bill at steady amounts every month.
+    p = Person(g, 55, ago(T), "rent, utility and phone at steady amounts",
+               ["active-customer", "bill-payer", "recurring-bills", "rent-payer", "salary-earner"])
+    p.salary(3200)
+    p.monthly("rent", 1100, "debit", "internet_banking", day=3, counterparty="SYN-LANDLORD-002")
+    p.monthly("utilities", 95, "debit", "internet_banking", day=10, counterparty="SYN-UTILITY-31", jitter=800)
+    p.monthly("telecom", 40, "debit", "mobile_app", day=12, counterparty="SYN-TELECOM-31")
+    p.household(0.90)
+
+    # Five subscriptions, two of them spelt differently from month to month as
+    # bank feeds do; the counterparty table recognises one merchant behind each.
+    p = Person(g, 56, ago(T), "five subscriptions, some spelt differently each month",
+               ["active-customer", "card-heavy-spender", "many-subscriptions", "online-shopper", "salary-earner",
+                "subscription-user"])
+    p.salary(3000)
+    stream_names = ["SYN STREAMCO*0412", "SYNSTREAMCO.EXAMPLE 2201", "SYN-STREAMCO"]
+    music_names = ["SYN MUSICBOX 7781", "SYN-MUSICBOX"]
+    for i, ym in enumerate(MONTHS):
+        p.add(on(ym, 4), "15.99", "debit", "card_online", "subscription", stream_names[i % 3])
+        p.add(on(ym, 7), "9.99", "debit", "card_online", "subscription", music_names[i % 2])
+        for k, (name, price) in enumerate((("04", "6.99"), ("05", "11.99"), ("06", "4.99"))):
+            p.add(on(ym, 10 + 3 * k), price, "debit", "card_online", "subscription", "SYN-SUBSCRIPTION-" + name)
+    p.household(0.90, n=2)
+
+    # Salary every month until June, none after; the account is still used.
+    p = Person(g, 57, ago(T), "salary stopped after June, account still used",
+               ["active-customer", "falling-income", "income-gap", "salary-moved-away"])
+    p.salary(3200, MONTHS[:9])
+    p.household(0.90)
+
+    # Spends 2,050 before each 2,050 payday from a 2,100 balance: the lowest
+    # balance is 50 every month, never below zero.
+    p = Person(g, 58, ago(T), "balance dips to 50 before each payday",
+               ["active-customer", "repeated-low-balance", "salary-earner"], opening_balance=2100)
+    p.salary(2050)
+    for ym in MONTHS:
+        p.spend(ym, 2050)
+
+    # Spending rises above the salary from April: overdrawn before every payday since.
+    p = Person(g, 59, ago(T), "overdrawn before payday since April",
+               ["active-customer", "overdrawn-months", "repeated-low-balance", "salary-earner",
+                "spending-exceeds-inflow"], opening_balance=400)
+    p.salary(2000)
+    for ym in MONTHS:
+        p.spend(ym, 2150 if ym >= (2026, 4) else 1900)
+
+    # Two payments returned unpaid, in June and August.
+    p = Person(g, 60, ago(T), "two payments returned unpaid",
+               ["active-customer", "returned-payments", "salary-earner"])
+    p.salary(2500)
+    p.household(0.88)
+    for when in (datetime.date(2026, 6, 18), datetime.date(2026, 8, 22)):
+        p.add(when, 15, "debit", "system", "returned_payment")
+
+    # Business income from one client every month until July, none since.
+    p = Person(g, 61, ago(T), "business income stopped after July",
+               ["active-customer", "business-income", "falling-income", "income-gap"])
+    p.monthly("business_income", 2500, "credit", "incoming", months=MONTHS[:10], day=8,
+              counterparty="SYN-CLIENT-200")
+    p.household(0.85, months=MONTHS[:10])
+    for ym in LAST3[1:]:
+        p.spend(ym, 300)
+
+    # Balance reaches zero before every payday and goes 50 below zero once,
+    # in July (near miss for overdrawn months).
+    p = Person(g, 62, ago(T), "overdrawn in only one month (near miss)",
+               ["active-customer", "repeated-low-balance", "salary-earner"], opening_balance=2000)
+    p.salary(2000)
+    for ym in MONTHS:
+        p.spend(ym, {(2026, 7): 2050, (2026, 8): 1950}.get(ym, 2000))
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +689,14 @@ def scenarios(g):
 # ---------------------------------------------------------------------------
 
 def background(g, number):
+    """A random background customer; 60% of them carry the balance after each transaction."""
+    _background(g, number)
+    person = g.people[-1]
+    if g.rng.chance(0.6):
+        person.opening_balance = money(g.rng.int(200, 6000))
+
+
+def _background(g, number):
     r = g.rng
     roll = r.unit()
     if roll < 0.57:
@@ -593,13 +809,25 @@ def malformed_rows(g):
         g.extra_rows.append({
             "customer_id": cid, "account_id": "SYN-ACC-{:06d}".format(int(cid[1:])), "posted_date": posted,
             "amount": amount, "currency": currency, "direction": direction, "channel": channel,
-            "category": category, "counterparty": "", "txn_country": HOME_COUNTRY,
+            "category": category, "counterparty": "", "txn_country": HOME_COUNTRY, "mcc": "", "balance_after": "",
         })
+
+
+def apply_v2_labels(g):
+    by_number = {p.number: p for p in g.people}
+    for tag_id, numbers in V2_EXPECTED.items():
+        for number in numbers:
+            by_number[number].expected.append(tag_id)
+    for tag_id, numbers in V2_NOT_EVALUATED.items():
+        for number in numbers:
+            person = by_number[number]
+            person.expected_not_evaluated = list(person.expected_not_evaluated or []) + [tag_id]
 
 
 def build(seed=SEED, customers=300):
     g = Generator(seed)
     scenarios(g)
+    apply_v2_labels(g)
     for number in range(len(g.people) + 1, customers + 1):
         background(g, number)
     malformed_rows(g)
@@ -625,14 +853,27 @@ def write(g, out_dir):
             writer.writerow([p.cid, "Synthetic Customer {:04d}".format(p.number), p.account,
                              p.open_date.isoformat() if p.open_date else "", p.home_country, p.home_currency])
 
+    balances = {}
+    for person in g.people:
+        if person.opening_balance is None:
+            continue
+        running = person.opening_balance
+        for row in sorted(person.rows, key=lambda r: (r["date"], r["seq"])):
+            change = money(row["amount"] * RATES[row["currency"]])
+            running += change if row["direction"] == "credit" else -change
+            balances[row["seq"]] = running
+
     rows = []
     for person, row in g.rows_in_order:
         signed = row["amount"] if row["direction"] == "credit" else -row["amount"]
+        balance = balances.get(row["seq"])
         rows.append({
             "customer_id": person.cid, "account_id": person.account, "posted_date": row["date"].isoformat(),
             "amount": "{:.2f}".format(signed), "currency": row["currency"], "direction": row["direction"],
             "channel": row["channel"], "category": row["category"], "counterparty": row["counterparty"],
-            "txn_country": row["country"], "_key": (row["date"].isoformat(), person.cid, row["seq"]),
+            "txn_country": row["country"], "mcc": row["mcc"],
+            "balance_after": "" if balance is None else "{:.2f}".format(balance),
+            "_key": (row["date"].isoformat(), person.cid, row["seq"]),
         })
     rows.sort(key=lambda r: r["_key"])
     rows.extend(dict(r, _key=None) for r in g.extra_rows)
@@ -648,8 +889,10 @@ def write(g, out_dir):
         if p.expected is None:
             continue
         entry = {"customer_id": p.cid, "scenario": p.scenario, "expected_tags": sorted(p.expected)}
-        if p.expected_not_evaluated is not None:
-            entry["expected_not_evaluated"] = sorted(p.expected_not_evaluated)
+        not_evaluated = set(p.expected_not_evaluated or ())
+        if p.opening_balance is None:
+            not_evaluated.update(BALANCE_TAGS)
+        entry["expected_not_evaluated"] = sorted(not_evaluated)
         labelled.append(entry)
     expected = {
         "description": ("Expected tags for the labelled scenario customers in this synthetic data set. "

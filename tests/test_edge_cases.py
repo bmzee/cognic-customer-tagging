@@ -5,7 +5,7 @@ import datetime
 import unittest
 
 import engine
-from tests.helpers import AS_OF, LAST6, MONTHS, CsvFiles, on
+from tests.helpers import AS_OF, CsvFiles, LAST6, MONTHS, TAXONOMY, on
 
 
 class CsvTestCase(unittest.TestCase):
@@ -111,7 +111,7 @@ class MissingFields(CsvTestCase):
         self.files.txn("C1", "2026-09-01", "-50.00", channel="", category="")
         customers, transactions = self.files.write()
         cs, _ = engine.load_customers(customers, "USD")
-        by_customer, _, _, _ = engine.load_transactions(transactions, cs, {"USD": 1})
+        by_customer, _, _, _ = engine.load_transactions(transactions, cs, TAXONOMY)
         txn = by_customer["C1"][0]
         self.assertEqual((txn.channel, txn.category), ("unknown", "uncategorized"))
 
@@ -169,7 +169,7 @@ class Signs(CsvTestCase):
             self._bills(cid, amount, direction)
         run = self.run_engine()
         for cid in ("SIGNED", "UNSIGNED", "BOTH", "ALIAS"):
-            self.assertEqual(run.tags_for(cid), ["bill-payer"], cid)
+            self.assertEqual(run.tags_for(cid), ["bill-payer", "active-customer"], cid)
 
     def test_positive_amount_without_direction_is_a_credit(self):
         self.files.customer("C1")

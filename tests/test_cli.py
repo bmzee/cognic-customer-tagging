@@ -11,7 +11,7 @@ import sys
 import tempfile
 import unittest
 
-from tests.helpers import ROOT
+from tests.helpers import ROOT, TAXONOMY
 
 DATA = os.path.join(ROOT, "data")
 ENGINE_DIR = os.path.join(ROOT, "engine")
@@ -56,11 +56,15 @@ class Determinism(unittest.TestCase):
             self.assertEqual(len(record["customers"]), 300)
             first = record["customers"][0]
             self.assertEqual(first["customer_id"], "C0001")
-            self.assertEqual([t["id"] for t in first["tags"]], ["salary-earner"])
+            self.assertEqual([t["id"] for t in first["tags"]], ["salary-earner", "active-customer"])
+            self.assertEqual(record["taxonomy_hash"], TAXONOMY.content_hash)
+            # Held at every one of the 6 month-end checks kept (lifecycle_months).
+            self.assertEqual(first["tags"][0]["entered_on"], "2026-04-30")
+            self.assertTrue(first["tags"][0]["since_window_start"])
             self.assertTrue(first["tags"][0]["evidence"])
             with open(os.path.join(dirs[0], "tagged.csv"), encoding="utf-8") as handle:
                 header = handle.readline().strip()
-            self.assertEqual(header, "as_of,customer_id,tag_id,tag_name,reason,rule,evidence")
+            self.assertEqual(header, "as_of,customer_id,tag_id,tag_name,entered_on,reason,rule,evidence")
         finally:
             for out in dirs:
                 shutil.rmtree(out, ignore_errors=True)
@@ -115,8 +119,12 @@ class Commands(unittest.TestCase):
         result = run_cli(inputs() + ["--customer", "C0041"])
         record = json.loads(result.stdout)
         self.assertEqual([c["customer_id"] for c in record["customers"]], ["C0041"])
+        with open(os.path.join(DATA, "expected_tags.json"), encoding="utf-8") as handle:
+            expected = next(e for e in json.load(handle)["customers"] if e["customer_id"] == "C0041")
         self.assertEqual(sorted(n["id"] for n in record["customers"][0]["not_evaluated"]),
-                         ["established-customer", "frequent-traveller", "new-customer"])
+                         expected["expected_not_evaluated"])
+        self.assertIn("customers.home_country",
+                      next(n for n in record["customers"][0]["not_evaluated"] if n["id"] == "frequent-traveller")["missing"])
 
     def test_list_tags(self):
         result = run_cli(["--list-tags"])

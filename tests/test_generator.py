@@ -42,7 +42,7 @@ class SyntheticOnly(unittest.TestCase):
 
     def test_size(self):
         self.assertEqual(len(self.customers), 300)
-        self.assertTrue(4500 <= len(self.txns) <= 5500, len(self.txns))
+        self.assertTrue(5500 <= len(self.txns) <= 7000, len(self.txns))
 
     def test_twelve_months(self):
         dates = sorted(t["posted_date"] for t in self.txns if t["posted_date"])
@@ -56,10 +56,14 @@ class SyntheticOnly(unittest.TestCase):
         for row in self.customers:
             self.assertRegex(row["display_name"], r"^Synthetic Customer \d{4}$")
             self.assertRegex(row["account_id"], r"^SYN-ACC-\d{6}$")
-        pattern = re.compile(r"^(SYN-[A-Z]+-\d+)?$")
+        # Counterparties are SYN- identifiers, some spelt the way bank feeds spell
+        # them ("SYN STREAMCO*0412") to exercise the normalisation table.
+        pattern = re.compile(r"^(SYN[A-Z0-9 *.-]*)?$")
         for row in self.txns:
             self.assertRegex(row["account_id"], r"^SYN-ACC-\d{6}$")
             self.assertTrue(pattern.match(row["counterparty"]), row["counterparty"])
+            self.assertRegex(row["mcc"], r"^(\d{4})?$")
+            self.assertRegex(row["balance_after"], r"^(-?\d+\.\d{2})?$")
 
 
 if __name__ == "__main__":

@@ -35,8 +35,12 @@ class ExpectedTags(unittest.TestCase):
             covered.update(entry["expected_tags"])
         self.assertEqual(covered, set(TAXONOMY.by_id))
 
-    def test_labelled_subset_includes_customers_with_no_tags(self):
-        self.assertTrue(any(not e["expected_tags"] for e in self.expected["customers"]))
+    def test_labelled_subset_includes_near_misses(self):
+        self.assertGreaterEqual(sum("near miss" in e["scenario"] for e in self.expected["customers"]), 10)
+
+    def test_every_labelled_customer_states_what_cannot_be_evaluated(self):
+        for entry in self.expected["customers"]:
+            self.assertIn("expected_not_evaluated", entry, entry["customer_id"])
 
     def test_malformed_rows_are_reported(self):
         self.assertEqual(self.result.run_notes["skipped"], {
