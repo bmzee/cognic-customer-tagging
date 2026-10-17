@@ -1,0 +1,28 @@
+{
+  "version": "1",
+  "description": "Synthetic counterparty normalisation table. A raw counterparty string is cleaned (upper case, spaces collapsed, anything after '*' or '#' dropped, trailing all-digit tokens dropped), then the first matching rule gives the canonical counterparty and its kind: exact rules first, then prefix rules from the longest pattern, then contains rules from the longest pattern. A rule with a null counterparty keeps the cleaned value and only sets the kind. Unmatched counterparties keep the cleaned value with kind 'unknown'. All names are invented; a deployment replaces this table with the bank's own reviewed one.",
+  "kinds": ["employer", "business", "person", "merchant", "biller", "financial", "own_account", "unknown"],
+  "rules": [
+    {"match": "prefix", "pattern": "SYN STREAMCO", "counterparty": "SYN-STREAMCO", "kind": "merchant"},
+    {"match": "prefix", "pattern": "SYNSTREAMCO", "counterparty": "SYN-STREAMCO", "kind": "merchant"},
+    {"match": "prefix", "pattern": "SYN-STREAMCO", "counterparty": "SYN-STREAMCO", "kind": "merchant"},
+    {"match": "contains", "pattern": "SYN MUSICBOX", "counterparty": "SYN-MUSICBOX", "kind": "merchant"},
+    {"match": "prefix", "pattern": "SYN-MUSICBOX", "counterparty": "SYN-MUSICBOX", "kind": "merchant"},
+    {"match": "prefix", "pattern": "PAYROLL SYN-EMPLOYER-", "counterparty": null, "kind": "employer"},
+    {"match": "prefix", "pattern": "SYN-EMPLOYER-", "counterparty": null, "kind": "employer"},
+    {"match": "prefix", "pattern": "SYN-CLIENT-", "counterparty": null, "kind": "business"},
+    {"match": "prefix", "pattern": "SYN-SUPPLIER-", "counterparty": null, "kind": "business"},
+    {"match": "prefix", "pattern": "SYN-PERSON-", "counterparty": null, "kind": "person"},
+    {"match": "prefix", "pattern": "SYN-SENDER-", "counterparty": null, "kind": "person"},
+    {"match": "prefix", "pattern": "SYN-RECIPIENT-", "counterparty": null, "kind": "person"},
+    {"match": "prefix", "pattern": "SYN-MERCHANT-", "counterparty": null, "kind": "merchant"},
+    {"match": "prefix", "pattern": "SYN-SUBSCRIPTION-", "counterparty": null, "kind": "merchant"},
+    {"match": "prefix", "pattern": "SYN-UTILITY-", "counterparty": null, "kind": "biller"},
+    {"match": "prefix", "pattern": "SYN-TELECOM-", "counterparty": null, "kind": "biller"},
+    {"match": "prefix", "pattern": "SYN-LANDLORD-", "counterparty": null, "kind": "biller"},
+    {"match": "prefix", "pattern": "SYN-INSURER-", "counterparty": null, "kind": "financial"},
+    {"match": "prefix", "pattern": "SYN-LENDER-", "counterparty": null, "kind": "financial"},
+    {"match": "prefix", "pattern": "SYN-BROKER-", "counterparty": null, "kind": "financial"},
+    {"match": "prefix", "pattern": "SYN-SAVINGS-", "counterparty": null, "kind": "own_account"}
+  ]
+}
