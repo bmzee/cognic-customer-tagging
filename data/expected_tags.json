@@ -7,229 +7,449 @@
       "customer_id": "C0001",
       "scenario": "salary every month",
       "expected_tags": [
+        "active-customer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0002",
       "scenario": "salary 5 of last 6 months (near miss)",
-      "expected_tags": []
+      "expected_tags": [
+        "active-customer"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
     },
     {
       "customer_id": "C0003",
       "scenario": "freelance income that swings month to month",
       "expected_tags": [
+        "active-customer",
         "business-income",
         "irregular-income"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "idle-balance",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0004",
       "scenario": "gig work from several clients",
       "expected_tags": [
+        "active-customer",
         "business-income",
         "multi-source-income"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "idle-balance",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0005",
       "scenario": "money received from abroad every month",
       "expected_tags": [
+        "active-customer",
         "remittance-receiver"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0006",
       "scenario": "money from abroad 2 of last 6 months (near miss)",
-      "expected_tags": []
+      "expected_tags": [
+        "active-customer"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
     },
     {
       "customer_id": "C0007",
       "scenario": "salary rise in the last 3 months",
       "expected_tags": [
+        "active-customer",
         "rising-income",
-        "salary-earner"
+        "salary-earner",
+        "spending-rising"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0008",
       "scenario": "salary replaced by small freelance income",
       "expected_tags": [
-        "falling-income"
+        "active-customer",
+        "falling-income",
+        "salary-moved-away"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0009",
       "scenario": "one large transfer received in August",
       "expected_tags": [
+        "active-customer",
         "large-recent-inflow",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0010",
       "scenario": "high monthly salary",
       "expected_tags": [
+        "active-customer",
         "high-inflow",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0011",
       "scenario": "rent, loan and bills every month",
       "expected_tags": [
+        "active-customer",
         "bill-payer",
         "loan-repayer",
+        "recurring-bills",
         "rent-payer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0012",
       "scenario": "utility bill 4 of last 6 months (near miss)",
       "expected_tags": [
+        "active-customer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0013",
       "scenario": "quarterly insurance premiums",
       "expected_tags": [
+        "active-customer",
         "insurance-payer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0014",
       "scenario": "most spending by card",
       "expected_tags": [
+        "active-customer",
         "card-heavy-spender",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0015",
       "scenario": "card spending, 12 card payments in 90 days (near miss)",
       "expected_tags": [
+        "active-customer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0016",
       "scenario": "online shopping and three subscriptions",
       "expected_tags": [
+        "active-customer",
         "digital-first",
         "online-shopper",
         "salary-earner",
         "subscription-user"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0017",
       "scenario": "all payments in the mobile app",
       "expected_tags": [
+        "active-customer",
         "digital-first",
+        "mobile-active",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0018",
       "scenario": "75% of payments digital (near miss)",
       "expected_tags": [
+        "active-customer",
+        "mobile-active",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0019",
       "scenario": "pays bills and transfers in a branch",
       "expected_tags": [
+        "active-customer",
         "bill-payer",
         "branch-reliant",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0020",
       "scenario": "most spending taken as cash",
       "expected_tags": [
+        "active-customer",
         "high-cash-user",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0021",
       "scenario": "cash withdrawals, 3 in 90 days (near miss)",
       "expected_tags": [
+        "active-customer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "idle-balance",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0022",
       "scenario": "cash deposits twice a month",
       "expected_tags": [
+        "active-customer",
         "cash-depositor"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0023",
       "scenario": "monthly transfer to savings",
       "expected_tags": [
+        "active-customer",
         "salary-earner",
         "saver"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0024",
       "scenario": "keeps a third of income each month",
       "expected_tags": [
+        "active-customer",
         "salary-earner",
         "saver"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0025",
       "scenario": "savings transfers 4 of last 6 months (near miss)",
       "expected_tags": [
+        "active-customer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0026",
       "scenario": "two investment purchases",
       "expected_tags": [
+        "active-customer",
         "investor",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0027",
       "scenario": "spending above income for 6 months",
       "expected_tags": [
+        "active-customer",
         "salary-earner",
         "spending-exceeds-inflow"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0028",
       "scenario": "four trips abroad",
       "expected_tags": [
+        "active-customer",
         "frequent-traveller",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0029",
       "scenario": "two trips abroad (near miss)",
       "expected_tags": [
+        "active-customer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0030",
       "scenario": "online purchases in euros",
       "expected_tags": [
+        "active-customer",
         "foreign-currency-spender",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
@@ -237,6 +457,13 @@
       "scenario": "new customer with first transactions",
       "expected_tags": [
         "new-customer"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "idle-balance",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
@@ -244,28 +471,57 @@
       "scenario": "new customer with no transactions",
       "expected_tags": [
         "new-customer"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "idle-balance",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0033",
       "scenario": "long-standing and active",
       "expected_tags": [
+        "active-customer",
         "established-customer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0034",
       "scenario": "almost three years a customer (near miss)",
       "expected_tags": [
+        "active-customer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0035",
       "scenario": "no activity since December",
       "expected_tags": [
+        "card-dormant",
         "dormant"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "idle-balance",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
@@ -274,6 +530,13 @@
       "expected_tags": [
         "going-dormant",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "idle-balance",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
@@ -281,48 +544,374 @@
       "scenario": "quiet for six months, then active again",
       "expected_tags": [
         "re-engaged"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0038",
       "scenario": "many person-to-person transfers",
       "expected_tags": [
+        "active-customer",
+        "mobile-active",
         "p2p-transfer-active",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0039",
       "scenario": "frequent bank charges",
       "expected_tags": [
+        "active-customer",
         "frequent-fee-payer",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0040",
       "scenario": "sends money abroad every month",
       "expected_tags": [
+        "active-customer",
         "remittance-sender",
         "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0041",
       "scenario": "opening date and home country missing",
       "expected_tags": [
+        "active-customer",
         "salary-earner"
       ],
       "expected_not_evaluated": [
+        "balance-growing",
         "established-customer",
         "frequent-traveller",
-        "new-customer"
+        "healthy-buffer",
+        "new-customer",
+        "overdrawn-months",
+        "recent-traveller",
+        "repeated-low-balance"
       ]
     },
     {
       "customer_id": "C0042",
-      "scenario": "light balanced activity, no tag expected",
-      "expected_tags": []
+      "scenario": "light balanced activity, only the active tag",
+      "expected_tags": [
+        "active-customer"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "idle-balance",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0043",
+      "scenario": "monthly retainer from one business client",
+      "expected_tags": [
+        "active-customer",
+        "business-income",
+        "regular-other-income"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0044",
+      "scenario": "eats out and buys groceries every week",
+      "expected_tags": [
+        "active-customer",
+        "card-heavy-spender",
+        "dining-out",
+        "groceries-regular",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0045",
+      "scenario": "commutes by transport and car",
+      "expected_tags": [
+        "active-customer",
+        "card-heavy-spender",
+        "commuter",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0046",
+      "scenario": "one large purchase in August",
+      "expected_tags": [
+        "active-customer",
+        "big-ticket-purchase",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0047",
+      "scenario": "spending up 40% in the last 3 months",
+      "expected_tags": [
+        "active-customer",
+        "salary-earner",
+        "spending-rising"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0048",
+      "scenario": "stopped using the card after June",
+      "expected_tags": [
+        "active-customer",
+        "card-dormant",
+        "mobile-active",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0049",
+      "scenario": "bills whose amounts swing (near miss for recurring bills)",
+      "expected_tags": [
+        "active-customer",
+        "bill-payer",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0050",
+      "scenario": "a trip abroad this month",
+      "expected_tags": [
+        "active-customer",
+        "recent-traveller",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0051",
+      "scenario": "books flights and hotels",
+      "expected_tags": [
+        "active-customer",
+        "salary-earner",
+        "travel-booker"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0052",
+      "scenario": "keeps a healthy buffer",
+      "expected_tags": [
+        "active-customer",
+        "healthy-buffer",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": []
+    },
+    {
+      "customer_id": "C0053",
+      "scenario": "balance growing fast",
+      "expected_tags": [
+        "active-customer",
+        "balance-growing",
+        "healthy-buffer",
+        "salary-earner",
+        "saver"
+      ],
+      "expected_not_evaluated": []
+    },
+    {
+      "customer_id": "C0054",
+      "scenario": "large balance, little activity",
+      "expected_tags": [
+        "idle-balance"
+      ],
+      "expected_not_evaluated": []
+    },
+    {
+      "customer_id": "C0055",
+      "scenario": "rent, utility and phone at steady amounts",
+      "expected_tags": [
+        "active-customer",
+        "bill-payer",
+        "recurring-bills",
+        "rent-payer",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0056",
+      "scenario": "five subscriptions, some spelt differently each month",
+      "expected_tags": [
+        "active-customer",
+        "card-heavy-spender",
+        "many-subscriptions",
+        "online-shopper",
+        "salary-earner",
+        "subscription-user"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0057",
+      "scenario": "salary stopped after June, account still used",
+      "expected_tags": [
+        "active-customer",
+        "falling-income",
+        "income-gap",
+        "salary-moved-away"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0058",
+      "scenario": "balance dips to 50 before each payday",
+      "expected_tags": [
+        "active-customer",
+        "repeated-low-balance",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": []
+    },
+    {
+      "customer_id": "C0059",
+      "scenario": "overdrawn before payday since April",
+      "expected_tags": [
+        "active-customer",
+        "overdrawn-months",
+        "repeated-low-balance",
+        "salary-earner",
+        "spending-exceeds-inflow"
+      ],
+      "expected_not_evaluated": []
+    },
+    {
+      "customer_id": "C0060",
+      "scenario": "two payments returned unpaid",
+      "expected_tags": [
+        "active-customer",
+        "returned-payments",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0061",
+      "scenario": "business income stopped after July",
+      "expected_tags": [
+        "active-customer",
+        "business-income",
+        "falling-income",
+        "income-gap"
+      ],
+      "expected_not_evaluated": [
+        "balance-growing",
+        "healthy-buffer",
+        "overdrawn-months",
+        "repeated-low-balance"
+      ]
+    },
+    {
+      "customer_id": "C0062",
+      "scenario": "overdrawn in only one month (near miss)",
+      "expected_tags": [
+        "active-customer",
+        "repeated-low-balance",
+        "salary-earner"
+      ],
+      "expected_not_evaluated": []
     }
   ]
 }
