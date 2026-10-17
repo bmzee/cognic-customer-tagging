@@ -43,7 +43,7 @@ class Context(object):
     def __init__(self, taxonomy, data, as_of, tag_states=None, tag_missing=None):
         self.taxonomy = taxonomy
         self.data = data
-        self.customer = data.customer
+        self.customer = data.customer_at(as_of)
         self.as_of = as_of
         self.tag_states = tag_states if tag_states is not None else {}
         self.tag_missing = tag_missing if tag_missing is not None else {}

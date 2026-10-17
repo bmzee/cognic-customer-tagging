@@ -352,6 +352,9 @@ def evaluate_data(taxonomy, data, as_of, with_evidence=True):
     with_evidence: True builds the evidence, reason and rule for every tag;
     "held" builds them only for tags that hold (the states are identical);
     False gives states and missing fields only."""
+    if data.closed_on is not None and as_of >= data.closed_on:
+        # A closed account has no tags from its closing date.
+        return OrderedDict((tag["id"], TagResult(tag, False, [], [], [], None, None)) for tag in taxonomy.tags)
     ctx = features.Context(taxonomy, data, as_of)
     results = _rule_states(taxonomy, ctx, with_evidence)
     _apply_exclusive_groups(taxonomy, results)

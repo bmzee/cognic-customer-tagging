@@ -18,6 +18,7 @@ never patched, so batch runs and incremental updates produce identical
 buckets (see DESIGN.md).
 """
 
+import bisect
 import datetime
 import hashlib
 import json
@@ -327,24 +328,47 @@ class CustomerData(object):
     rows_by_month: {(year, month): [Transaction, ...]} sorted by sort_key.
     buckets:       {(year, month): {feature key: Agg}}; months missing from it
                    are computed from rows_by_month on first use.
-    customer_for:  callable(txn) -> the customer attributes for that
-                   transaction (versioned attributes in the profile store).
+    versions:      optional [(effective_from date, Customer)] sorted by date:
+                   attributes in force from each date (the profile store keeps
+                   customer.updated events this way); customer then holds the
+                   attributes before the first version. Without versions the
+                   one customer applies everywhere.
+    closed_on:     optional date from which the customer has no tags.
     """
 
-    def __init__(self, customer, rows_by_month, specs, buckets=None, customer_for=None):
+    def __init__(self, customer, rows_by_month, specs, buckets=None, customer_for=None, versions=None,
+                 closed_on=None):
         self.customer = customer
         self.rows_by_month = rows_by_month
         self.specs = specs
         self.buckets = buckets if buckets is not None else {}
-        self.customer_for = customer_for or (lambda txn: customer)
+        self.versions = versions or None
+        self._version_days = [day for day, _ in self.versions] if self.versions else None
+        self.closed_on = closed_on
+        if customer_for is not None:
+            self.customer_for = customer_for
+        elif self.versions:
+            self.customer_for = lambda txn: self.customer_at(txn.posted_date)
+        else:
+            self.customer_for = lambda txn: customer
         self._range_cache = {}
 
+    def customer_at(self, day):
+        """The attributes in force on day: the latest version effective on or
+        before it; before the first version, attributes are unknown."""
+        if not self.versions:
+            return self.customer
+        index = bisect.bisect_right(self._version_days, day) - 1
+        if index < 0:
+            return self.customer  # before the first version: attributes unknown
+        return self.versions[index][1]
+
     @classmethod
-    def from_rows(cls, customer, rows, specs, customer_for=None):
+    def from_rows(cls, customer, rows, specs, customer_for=None, versions=None, closed_on=None):
         by_month = OrderedDict()
         for txn in rows:
             by_month.setdefault(month_of(txn.posted_date), []).append(txn)
-        return cls(customer, by_month, specs, customer_for=customer_for)
+        return cls(customer, by_month, specs, customer_for=customer_for, versions=versions, closed_on=closed_on)
 
     def month_bucket(self, key, year_month):
         month = self.buckets.get(year_month)

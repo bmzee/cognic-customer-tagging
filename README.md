@@ -34,6 +34,8 @@ A tag whose rule needs a missing field, such as an account opening date or a bal
 | `engine/cards.py` | Generates the tag cards in `docs/tags/` |
 | `engine/build.py`, `engine/profile.py`, `engine/store.py` | The builder, how a customer's profile rows are written, and the SQLite profile store |
 | `engine/migrations/` | Numbered store migrations, applied in order and checked by checksum |
+| `engine/events.py`, `engine/feeds.py`, `engine/incremental.py` | The event model and CSV-to-events conversion, the JSONL and SQLite-outbox feed adapters, and continuous updates with the batch rebuild they always equal |
+| `tools/bench.py`, `.github/workflows/benchmark.yml` | Scale benchmarks: a dense synthetic generator, rebuild time and continuous-update latency (large runs in CI only) |
 | `data/generate.py` | Seeded synthetic data generator |
 | `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled scenarios' expected tags |
 | `tests/` | `unittest` suite; latest results in `tests/RESULTS.md` |
@@ -92,6 +94,12 @@ Build the profile store from the data copy (the only writer; the file appears on
 python3 -m engine.build --rebuild --customers data/customers.csv --transactions data/transactions.csv --store out/profile.db
 ```
 
+Apply new events from a change feed (a JSONL file or a SQLite outbox), everything available, then exit:
+
+```bash
+python3 -m engine.build --follow --store out/profile.db --jsonl feed.jsonl
+```
+
 Print a canonical dump of the store; the same inputs and as-of date always give the same bytes:
 
 ```bash
@@ -129,6 +137,19 @@ CI runs the same command on Python 3.9 to 3.13 on every push and pull request (`
 **Retention.** The store keeps `history_months` (13) plus `lifecycle_months` (6) calendar months back from the as-of month. `history_months` covers the longest rule window, and the extra months let the oldest month-end checkpoint see a full window, so the store's history equals a batch run's. Nothing older is kept: tags need nothing older, and data minimisation forbids keeping it.
 
 **Safety.** A rebuild writes into a temporary file and renames it into place only when complete. `engine.store.open_store` refuses a file that is not SQLite or fails the integrity check, has unknown or changed migrations, is not marked ready, or was built from a different taxonomy hash. Readers open the store with `file:...?mode=ro`, so they cannot write.
+
+## Continuous updates
+
+Everything the builder reads is a versioned JSON event (`customer-tagging.event/1`): `transaction.posted`, `transaction.reversed`, `transaction.corrected` (a full after-image), `customer.updated` (a full after-image, effective from its date), `account.closed`, and `clock.tick`, the end of a day, which moves the as-of date so time-based tags such as "going dormant" change with no new transaction. `engine/events.py` documents every field and how a bank's change data capture maps onto them. The CSV copy is turned into the same events, so a CSV rebuild and a feed are one path.
+
+`--follow` reads a JSONL file (position: the byte offset after the last complete line, plus the file's identity) or polls a SQLite outbox table (position: the last sequence number), in batches. Each batch is one SQLite transaction holding all its effects and the feed position, so a crash loses nothing and repeats nothing. It depends on no message broker.
+
+- **Idempotent:** an event id seen before is skipped; the same id with different content is refused.
+- **Order-independent:** each transaction is a register won by the highest version, then a reversal over a posting, then the lowest event id; customer attributes are versioned by effective date. A reversal or correction that arrives before its posting is handled.
+- **Incremental:** an event recomputes only its customer's affected month buckets and re-evaluates only that customer, at the as-of date and at the checkpoints on or after its effective date.
+- **Allowed lateness:** a month is sealed once it ended more than `--lateness-days` (default 3) before the as-of date; an event dated in a sealed month is kept in `late_events`, counted and not applied, and a rebuild folds it in.
+
+The property that proves it: for any seeded random order of the same events, with duplicates, late arrivals within the bound, restarts and crashes, the followed store equals a batch rebuild of the same events (`tests/test_incremental.py`; CI runs 40 short and 4 long seeds on every push).
 
 ## Data contract
 

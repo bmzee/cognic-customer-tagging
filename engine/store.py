@@ -32,12 +32,19 @@ EXPORT_TABLES = OrderedDict([
     ("meta", "key"),
     ("schema_migrations", "version"),
     ("customers", "customer_id"),
+    ("customer_versions", "customer_id, effective_from"),
+    ("closures", "customer_id"),
+    ("txn_registers", "customer_id, txn_id"),
     ("ledger", "customer_id, txn_id"),
     ("features", "feature_key"),
     ("feature_buckets", "customer_id, feature_key, month"),
     ("tag_state", "customer_id, tag_id"),
     ("checkpoint_tags", "customer_id, checkpoint"),
     ("tag_history", "customer_id, checkpoint, tag_id"),
+    ("events_seen", "event_id"),
+    ("rejected_events", "event_id"),
+    ("late_events", "event_id"),
+    ("feed_checkpoints", "feed"),
     ("runs", "run_id"),
 ])
 EXPORT_EXCLUDED_COLUMNS = {"runs": ("started_at", "finished_at")}
@@ -173,11 +180,14 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def export(connection):
+def export(connection, tables=None):
     """A canonical, deterministic dump of every table (runs without its clock
-    columns): the same inputs and as-of date always give the same bytes."""
+    columns): the same inputs and as-of date always give the same bytes.
+    tables limits the dump to the named tables."""
     lines = []
     for table, order in EXPORT_TABLES.items():
+        if tables is not None and table not in tables:
+            continue
         columns = [row[1] for row in connection.execute("PRAGMA table_info({})".format(table))]
         keep = [c for c in columns if c not in EXPORT_EXCLUDED_COLUMNS.get(table, ())]
         query = "SELECT {} FROM {} ORDER BY {}".format(", ".join(keep), table, order)
