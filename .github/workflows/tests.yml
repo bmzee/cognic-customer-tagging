@@ -27,4 +27,8 @@ jobs:
       # is private and never reaches this public repository or its CI, so the
       # schema test is skipped here (see docs/OPEN-QUESTIONS.md, Q1).
       - name: Run the tests
+        # A larger run of the incremental-equals-batch property than locally.
+        env:
+          CT_PROPERTY_SEEDS: "40"
+          CT_PROPERTY_LONG_SEEDS: "4"
         run: python -m unittest discover -s tests -t .

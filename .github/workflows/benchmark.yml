@@ -1,0 +1,40 @@
+name: benchmark
+
+# Scale runs that are too heavy for a shared machine: a 200,000-customer,
+# 5,000,000-transaction rebuild, continuous-update latency on that store, and
+# a long run of the incremental-equals-batch property. Started by hand, and
+# on pushes to the phase 4 branch.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["phase/4-continuous-updates"]
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Generate 200,000 customers and 5,000,000 transactions (synthetic)
+        run: python tools/bench.py data --customers 200000 --per-customer 25 --out "$RUNNER_TEMP/bench"
+      - name: Rebuild the profile store
+        run: python tools/bench.py rebuild --data "$RUNNER_TEMP/bench" --store "$RUNNER_TEMP/bench/profile.db"
+      - name: Continuous updates on that store
+        run: python tools/bench.py follow --store "$RUNNER_TEMP/bench/profile.db" --events 3000
+      - name: Rebuild of 20,000 customers (the local measurement, for comparison)
+        run: |
+          python tools/bench.py data --customers 20000 --per-customer 25 --out "$RUNNER_TEMP/bench20k"
+          python tools/bench.py rebuild --data "$RUNNER_TEMP/bench20k" --store "$RUNNER_TEMP/bench20k/profile.db"
+      - name: Long property run (incremental equals batch)
+        env:
+          CT_PROPERTY_SEEDS: "200"
+          CT_PROPERTY_LONG_SEEDS: "20"
+        run: python -m unittest tests.test_incremental
