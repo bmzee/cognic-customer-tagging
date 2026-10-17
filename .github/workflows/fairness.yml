@@ -19,6 +19,11 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch makes an older full-size run pointless.
+concurrency:
+  group: fairness-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   fairness:
     runs-on: ubuntu-latest
