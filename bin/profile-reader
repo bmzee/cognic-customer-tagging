@@ -1,0 +1,22 @@
+#!/usr/bin/env python3
+"""The reader's entry point inside the image: /app/profile-reader --store PATH.
+
+Runs python3 -m server with the code's folder on the path, so the command needs no
+environment variables and no installed packages.
+"""
+
+import os
+import sys
+
+# In the image the script sits next to server/ and engine/ (/app); in the
+# repository it sits in bin/, one level down.
+_here = os.path.dirname(os.path.realpath(__file__))
+for _base in (_here, os.path.dirname(_here)):
+    if os.path.isdir(os.path.join(_base, "server")):
+        sys.path.insert(0, _base)
+        break
+
+from server.__main__ import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())
