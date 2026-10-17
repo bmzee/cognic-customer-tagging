@@ -128,5 +128,7 @@ Every source the research notes in this folder cite, read on the date shown. Fin
 | [Model Context Protocol: Discovery: server/discover (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28/server/discover) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
 | [Model Context Protocol: Tools (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
 | [Model Context Protocol: stdio transport (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
+| [Agent Skills specification](https://agentskills.io/specification) | Agent Skills project | 2026-10-18 | [agent-instructions](agent-instructions.md) |
+| [LLM06:2025 Excessive Agency](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/) | OWASP Gen AI Security Project | 2026-10-18 | [agent-instructions](agent-instructions.md) |
 
-124 sources across 9 notes.
+126 sources across 10 notes.

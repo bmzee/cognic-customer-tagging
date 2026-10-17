@@ -7,7 +7,8 @@
       "employee"
     ],
     "agents": [
-      "assistant"
+      "assistant",
+      "customer-profiler"
     ]
   },
   "effects": [
@@ -28,30 +29,67 @@
           "employee"
         ],
         "agents": [
-          "assistant"
+          "assistant",
+          "customer-profiler"
         ]
       },
-      "profile": "workbench",
+      "profile": "standard",
+      "resources": [],
+      "scripts": [],
+      "requiredTools": [
+        "get_customer_tags",
+        "explain_tag",
+        "list_tags",
+        "customer_tag_history"
+      ],
+      "requiredSkills": [],
+      "tier": "instruction"
+    },
+    {
+      "id": "segment-explorer",
+      "path": "skills/segment-explorer/SKILL.md",
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant",
+          "customer-profiler"
+        ]
+      },
+      "profile": "standard",
+      "resources": [],
+      "scripts": [],
+      "requiredTools": [
+        "list_tags",
+        "find_customers_by_tag",
+        "explain_tag",
+        "tag_summary"
+      ],
+      "requiredSkills": [],
+      "tier": "instruction"
+    },
+    {
+      "id": "tag-review",
+      "path": "skills/tag-review/SKILL.md",
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant",
+          "customer-profiler"
+        ]
+      },
+      "profile": "standard",
       "resources": [
-        "taxonomy/counterparties.json",
-        "taxonomy/merchant_codes.json",
-        "taxonomy/tags.json"
+        "docs/tags/README.md"
       ],
-      "scripts": [
-        "engine/__init__.py",
-        "engine/__main__.py",
-        "engine/aggregate.py",
-        "engine/data.py",
-        "engine/evaluate.py",
-        "engine/features.py",
-        "engine/lifecycle.py",
-        "engine/output.py",
-        "engine/policy.py",
-        "engine/reference.py",
-        "engine/taxonomy.py",
-        "engine/windows.py"
+      "scripts": [],
+      "requiredTools": [
+        "list_tags",
+        "tag_summary"
       ],
-      "requiredTools": [],
       "requiredSkills": [],
       "tier": "instruction"
     }
@@ -65,20 +103,235 @@
           "employee"
         ],
         "agents": [
-          "assistant"
+          "assistant",
+          "customer-profiler"
         ]
       },
-      "profile": "workbench",
+      "profile": "standard",
       "resources": [],
       "scripts": [],
-      "requiredTools": [],
+      "requiredTools": [
+        "get_customer_tags",
+        "tag_summary"
+      ],
       "requiredSkills": [
         "customer-tagging:customer-tagging"
       ],
       "tier": "instruction"
+    },
+    {
+      "id": "explain-customer",
+      "path": "commands/explain-customer.md",
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant",
+          "customer-profiler"
+        ]
+      },
+      "profile": "standard",
+      "resources": [],
+      "scripts": [],
+      "requiredTools": [
+        "get_customer_tags",
+        "explain_tag"
+      ],
+      "requiredSkills": [
+        "customer-tagging:customer-tagging"
+      ],
+      "tier": "instruction"
+    },
+    {
+      "id": "tag-report",
+      "path": "commands/tag-report.md",
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant",
+          "customer-profiler"
+        ]
+      },
+      "profile": "standard",
+      "resources": [],
+      "scripts": [],
+      "requiredTools": [
+        "list_tags",
+        "tag_summary"
+      ],
+      "requiredSkills": [
+        "customer-tagging:tag-review"
+      ],
+      "tier": "instruction"
     }
   ],
-  "agents": [],
+  "agents": [
+    {
+      "id": "customer-profiler",
+      "path": "agents/customer-profiler.md",
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "customer-profiler"
+        ]
+      },
+      "tier": "reader",
+      "profile": "standard",
+      "tools": [
+        "list_tags",
+        "get_customer_tags",
+        "explain_tag",
+        "find_customers_by_tag",
+        "tag_summary",
+        "customer_tag_history"
+      ],
+      "skills": [
+        "customer-tagging:customer-tagging",
+        "customer-tagging:segment-explorer",
+        "customer-tagging:tag-review"
+      ],
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "as_of": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "the store's as-of date, YYYY-MM-DD, or empty"
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 16,
+            "enum": [
+              "answered",
+              "not_found",
+              "refused"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "a plain-words answer that only restates the tags below"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tag_id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "status": {
+                  "type": "string",
+                  "maxLength": 16,
+                  "enum": [
+                    "held",
+                    "not_held",
+                    "suppressed",
+                    "not_evaluated"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 1000,
+                  "description": "the reason exactly as the tool returned it, or empty"
+                },
+                "rule": {
+                  "type": "string",
+                  "maxLength": 3000,
+                  "description": "the rule in words"
+                },
+                "conditions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "condition": {
+                        "type": "string",
+                        "maxLength": 300,
+                        "description": "the condition, as the rule states it"
+                      },
+                      "value": {
+                        "type": "string",
+                        "maxLength": 160,
+                        "description": "the customer's value, exactly as the tool returned it"
+                      },
+                      "needs": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "description": "what the condition needed, for example 'at least 6'"
+                      },
+                      "result": {
+                        "type": "string",
+                        "maxLength": 10,
+                        "enum": [
+                          "met",
+                          "not met",
+                          "unknown"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "condition",
+                      "value",
+                      "needs",
+                      "result"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "maxItems": 20
+                },
+                "entered_on": {
+                  "type": "string",
+                  "maxLength": 10,
+                  "description": "YYYY-MM-DD or empty"
+                }
+              },
+              "required": [
+                "tag_id",
+                "name",
+                "status",
+                "reason",
+                "rule",
+                "conditions",
+                "entered_on"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 60
+          },
+          "refusal_reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "which rule a refused request broke, or empty"
+          }
+        },
+        "required": [
+          "customer_id",
+          "as_of",
+          "status",
+          "summary",
+          "tags",
+          "refusal_reason"
+        ],
+        "additionalProperties": false,
+        "description": "the agent's answer: only facts the read-only tools returned"
+      }
+    }
+  ],
   "hooks": [],
   "servers": [
     {
@@ -115,7 +368,8 @@
           "employee"
         ],
         "agents": [
-          "assistant"
+          "assistant",
+          "customer-profiler"
         ]
       },
       "credentials": [],
@@ -258,7 +512,8 @@
           "employee"
         ],
         "agents": [
-          "assistant"
+          "assistant",
+          "customer-profiler"
         ]
       },
       "credentials": [],
@@ -822,7 +1077,8 @@
           "employee"
         ],
         "agents": [
-          "assistant"
+          "assistant",
+          "customer-profiler"
         ]
       },
       "credentials": [],
@@ -1303,7 +1559,8 @@
           "employee"
         ],
         "agents": [
-          "assistant"
+          "assistant",
+          "customer-profiler"
         ]
       },
       "credentials": [],
@@ -1441,7 +1698,8 @@
           "employee"
         ],
         "agents": [
-          "assistant"
+          "assistant",
+          "customer-profiler"
         ]
       },
       "credentials": [],
@@ -1563,7 +1821,8 @@
           "employee"
         ],
         "agents": [
-          "assistant"
+          "assistant",
+          "customer-profiler"
         ]
       },
       "credentials": [],

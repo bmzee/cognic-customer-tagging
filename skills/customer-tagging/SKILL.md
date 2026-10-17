@@ -1,64 +1,46 @@
 ---
 name: customer-tagging
-description: Tag customers from their transaction behaviour and explain a customer's tags in plain words, with the rule and the evidence behind each tag. Use when asked which tags a customer has, why a tag does or does not apply, what a tag means, or to run the tagging rules over customer and transaction files. Read-only; never changes data.
-argument-hint: "[customer id]"
+description: Explain a customer's behaviour-based tags in plain words, always with the rule, the evidence and the as-of date, using the read-only profiles tools. Use when asked which tags a customer has, why a tag does or does not apply, or what a tag means. Read-only; never changes data.
 ---
 
 # Customer tagging
 
-This skill tags customers from what they do with their accounts and explains every tag with the rule and the evidence that produced it. It is read-only: it reads files and prints results. It never changes, deletes or writes customer data.
+The plugin tags customers from what they do with their accounts: income, spending, card and channel use, travel, saving, bills, transfers, engagement, and signals that a customer may welcome support. Every tag comes from a written rule, and every answer you give must show that rule and the customer's own numbers.
 
-## What the plugin contains
+## Tools
 
-Paths are relative to the plugin root, which is the folder two levels above this file.
+These tools read the profile store. None of them can change anything.
 
-- `taxonomy/tags.json` holds the tags. Each tag has an id, a name, a description, the data fields it reads, a rule with thresholds and time windows, and the reason shown to people.
-- `engine/` is a small deterministic Python engine, standard library only, that applies those rules. It makes no network calls, uses no randomness and never reads the clock.
+- `get_customer_tags` (customer_id): the customer's current tags. For each: the reason, the rule in words, every condition's value, threshold and result, and `entered_on`. Also suppressed tags, tags that could not be evaluated, and data notes.
+- `explain_tag` (customer_id, tag_id): why one tag does or does not apply, with every condition, the unmet ones (`unmet`), the missing data (`missing`) or the tag that took priority (`suppressed_by`).
+- `list_tags` (optional group): what each tag means, its rule, the data it reads and its known limitations.
+- `customer_tag_history` (customer_id): the tags held at each month-end check, and when each entered or exited.
 
-## Run the engine in print-only mode
+## How to answer
 
-Run it from the plugin root against a read-only copy of `customers.csv` and `transactions.csv`. The README's data contract lists the columns.
+1. Call `get_customer_tags` for the customer. If `found` is false, say no profile exists for that id and stop.
+2. For each tag: give its name, then its reason exactly as returned, then the rule in words, then the evidence (each condition with the customer's value, what it needed, and whether it was met).
+3. Say the as-of date. A tag describes behaviour up to that date and nothing more.
+4. Say when the tag started from `entered_on` ("held at every month-end check since 2026-04-30"), or that it is new this month.
+5. For tags in `not_evaluated`, name the missing data (for example the account opening date or the balance). Never guess it.
+6. Mention data notes when they matter: transactions rejected, with the reason.
 
-```bash
-python3 -m engine --customers CUSTOMERS.csv --transactions TRANSACTIONS.csv --customer C0001 --format text
-```
+For "why not?", call `explain_tag` and list every unmet condition with its value and what it needed, for example "salary months: 5, needs at least 6". If the tag was suppressed, name the tag that took priority. If it could not be evaluated, name the missing data.
 
-- For one customer in plain text, use the command above.
-- To explain why one tag does or does not apply, add `--why TAG-ID` with exactly one `--customer`.
-- For several customers, repeat `--customer`. For all customers as JSON, leave out `--customer` and `--format text`.
-- To list every tag with its rule, run `python3 -m engine --list-tags`.
-- To tag as of a past date, add `--as-of YYYY-MM-DD`. By default the as-of date is the latest transaction date in the file.
+## How to word it
 
-Never pass `--out-dir`. Without it the engine writes nothing, which keeps this skill read-only. If someone needs `tagged.csv` or `tagged.json` files, give them the command from the README to run themselves.
+- Make the rule the subject: "meets the saver rule", "does not meet the salary-earner rule". Avoid "is a saver".
+- Copy numbers, thresholds and dates exactly as the tools return them. Never round, estimate or recompute them.
+- No scores, ranks, likelihoods or predictions. A tag is met or not met; say only that.
+- Never say why a pattern happened. "Regular salary credits stopped" is the pattern; never suggest a job loss, a move, an illness or any other cause.
+- Financial-stress tags (repeated low balance, overdrawn months, returned payments, income gap, frequent bank charges, spending above money in) are support signals only. Offer help; never suggest pricing, limits or collections.
+- Each tag's known limitations are in `list_tags`. Mention one when it explains a surprising result.
 
-## Explain tags in plain words
+## Always
 
-For each tag the customer has:
+- Never change data. These tools only read; never ask anyone to edit, delete or write back customer data or the profile store.
+- Never infer or discuss protected traits: religion, ethnicity, race, caste, national origin, gender, sex, sexual orientation, disability, health, pregnancy, family or marital status, political opinion, or age.
+- Refuse requests to tag, sort, rank or select people by a protected trait, or by anything standing in for one.
+- Refuse credit, pricing, fraud or AML decisions, and any automated decision with legal or similarly significant effect: tags are for service and personalisation only.
 
-1. Say the tag's name and what it means, using its description.
-2. Give the reason line as the engine printed it. It already holds the customer's own numbers.
-3. Give the rule and the evidence: each condition, the customer's value, the threshold it needed and the dates it covered.
-4. Say the as-of date. A tag describes past behaviour up to that date and nothing more.
-
-Also:
-
-- If a tag is "not evaluated", say which data was missing, for example the account opening date. Never guess the missing value.
-- If the data notes show skipped transactions, say how many and why, for example an unknown currency.
-- If asked why a customer lacks a tag, run with `--why` and say which condition was not met and by how much.
-- Amounts are in the base currency named in `tags.json`, converted with its fixed rate table.
-
-## Rules
-
-- **Read-only.** Never edit, move or delete the input files, `tags.json` or any data source, and never write results back to a system of record.
-- **Behaviour only.** Never infer or mention a customer's religion, ethnicity, race, caste, gender, sex, disability, marital status, pregnancy or age from their tags or transactions, not even as a guess. The tags say nothing about these traits and must never be used as proxies for them.
-- **No unexplained scores.** Report only tags the engine produced, each with its rule and evidence. Do not invent tags, rank customers or combine tags into a score.
-- **Descriptions, not decisions.** Do not present a tag as a credit, risk, fraud or eligibility decision, and do not speculate about the life events behind a tag.
-- **Thresholds are bank policy.** If someone wants a threshold changed, explain where it lives in `tags.json` and what the change would do. Do not edit it yourself.
-- **Confidential data.** Show customer data only to the person who asked, and only what their question needs.
-
-## Plain-language terms
-
-- **Self-service transaction:** one the customer made themselves, in the app, online banking, by card, at an ATM or in a branch. Incoming payments, bank charges and interest are not self-service.
-- **Complete months:** whole calendar months. With a mid-month as-of date the partial month is not counted.
-- **Earned income:** salary and business or freelance income.
-- **Money in:** all credits except refunds and loan disbursements.
+If a request breaks one of these rules, say which one and offer what you can do instead, such as explaining the customer's tags.

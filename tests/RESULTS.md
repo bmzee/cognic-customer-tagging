@@ -1,13 +1,13 @@
 # Test results
 
-Recorded on 2026-10-18 from the repository root (phase 6), after generating the data with `python3 data/generate.py`. CI runs the same suite on Python 3.9 to 3.13 on every push and pull request (without the private schema).
+Recorded on 2026-10-18 from the repository root (phase 7), after generating the data with `python3 data/generate.py`. CI runs the same suite on Python 3.9 to 3.13 on every push and pull request (without the private schema).
 
 | Python | Schema validation | Tests run | Result |
 | --- | --- | --- | --- |
-| 3.14.6 | with the draft schema (`COGNIC_SAFETY_SCHEMA` set) | 262 | OK |
-| 3.14.6 | without the schema | 262 | OK, 1 skipped (the schema test) |
-| 3.9.6 | with the draft schema | 262 | OK |
-| 3.9.6 | without the schema | 262 | OK, 1 skipped |
+| 3.14.6 | with the draft schema (`COGNIC_SAFETY_SCHEMA` set) | 271 | OK |
+| 3.14.6 | without the schema | 271 | OK, 1 skipped (the schema test) |
+| 3.9.6 | with the draft schema | 271 | OK |
+| 3.9.6 | without the schema | 271 | OK, 1 skipped |
 
 Commands:
 
@@ -30,11 +30,12 @@ What the suite covers:
 | `test_store` | 20 | Rebuild determinism (byte-identical exports), the store holds exactly what a batch run computes (tags, `entered_on`, reasons, evidence, buckets), the runs table, retention, migrations from an empty store (once, in order, refusing changed or unknown ones), corrupt, truncated, half-built and stale stores refused, read-only connections cannot write, a failed rebuild leaves the previous store untouched, and the command line. |
 | `test_reference` | 17 | Counterparty cleaning and normalisation (one merchant behind several descriptors; rule order does not matter), pseudonymised people, merchant codes filling a missing category, restricted categories collapsed when read, balances. |
 | `test_lifecycle` | 10 | Month-end checkpoints, the lifecycle transitions (dormant, re-engaged, active, going dormant, dormant), `entered_on`, new this month, ended this month, the exclusive group, and that the fast state-only and held-evidence paths match full evaluation for all 300 synthetic customers at three dates. |
+| `test_instructions` | 10 | Every skill, command and the agent states the four rules, sets no model, tool permissions or hooks, runs no shell commands and names only the reader's tools; the commands are short and never expand arguments or files; the segment explorer keeps lists to ids and labels, one page at a time; the agent lists exactly the reader's six tools (never a wildcard), and its output schema is explicit, equal to the safety file's, and fits a refusal. |
 | `test_cli` | 10 | Byte-identical reruns, print-only mode writes nothing, no network, randomness or clock in the engine, no model names in code, config or docs. |
 | `test_expected_tags` | 6 | The engine's tags and not-evaluated tags for the 62 labelled synthetic customers equal `data/expected_tags.json`, and every tag is covered. |
 | `test_generator` | 6 | The seed reproduces the committed data byte for byte, and all identifiers are synthetic. |
 | `test_cards` | 5 | One generated card per tag, never stale, each with the purpose, rule, data used, intended and prohibited uses, limitations, owner and review date. |
-| `test_safety_file` | 5 | The safety file matches the plugin and validates against the draft schema. |
+| `test_safety_file` | 4 | The safety file matches the plugin (every skill, command and agent declared and present, instructions only with no scripts, required tools and skills that exist, the agent at the reader tier) and validates against the draft schema. |
 | `test_schema_validator` | 4 | The standard-library validator rejects each keyword's violations. |
 
 Measured on this machine (Python 3.14.6, under `nice`): tagging 2,000 synthetic customers (26,718 transactions) with lifecycle takes 4.6 seconds; rebuilding the profile store for 20,000 synthetic customers (246,600 transactions, through events) takes 66.7 seconds (63.0 s of CPU, 53 MB peak memory); on that store, continuous updates run at 163.6 events per second one event per transaction (p50 5.6 ms, p99 18.3 ms), 867 events per second in batches of 500, and a daily tick over all 20,000 customers takes 17.5 seconds.

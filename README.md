@@ -25,8 +25,9 @@ A tag whose rule needs a missing field, such as an account opening date or a bal
 | Path | What it is |
 | --- | --- |
 | `.claude-plugin/plugin.json` | Claude Code plugin manifest |
-| `skills/customer-tagging/SKILL.md` | How the agent runs the engine and explains tags, read-only |
-| `commands/tag-customers.md` | Command that loads the skill |
+| `skills/customer-tagging/`, `skills/segment-explorer/`, `skills/tag-review/` | Instructions: explain a customer's tags; find customers by tag with care; review the taxonomy |
+| `commands/tag-customers.md`, `commands/explain-customer.md`, `commands/tag-report.md` | `/tag-customers`, `/explain-customer`, `/tag-report` |
+| `agents/customer-profiler.md` | The reader-tier agent: the reader's tools, the skills, and an explicit output schema |
 | `cognic.plugin.json` | Draft Cognic safety file |
 | `taxonomy/tags.json` | The tags: groups, fields, rules, thresholds, windows, reasons, polarity, limitations, version, hash and changelog |
 | `taxonomy/counterparties.json`, `taxonomy/merchant_codes.json` | Counterparty normalisation and ISO 18245-style merchant codes (synthetic) |
@@ -291,20 +292,27 @@ These hold everywhere in the plugin. The engine enforces them in code, in `engin
 - **Synthetic data only** in this repository. There is no real customer data, and no bank names, hosts or logins.
 - **No model names** appear in code, configuration or docs.
 
+## Skills, commands and the agent
+
+All three are instructions only: they reach data through the reader's read-only tools and never run scripts.
+
+- **Skills.** `customer-tagging` explains a customer's tags in plain words, always with the rule, the evidence and the as-of date, and answers "why not" from the unmet conditions. `segment-explorer` lists the customers holding a tag with care: ids and display names only, one page at a time, one tag per list, and why a customer matched only when asked. `tag-review` takes the taxonomy owner through coverage, prevalence, drift, the fairness report and review dates, and names the changes that need a new assessment.
+- **Commands.** `/tag-customers` (a customer's tags, or how many hold each tag), `/explain-customer` (one customer, or why one tag does or does not apply), `/tag-report` (the taxonomy review). Each is under 4,000 bytes and expands no arguments.
+- **Agent.** `customer-profiler` has the reader tier, exactly the reader's six tools, the three skills, no model setting, and an output schema it must return.
+- **The same four rules in every file:** never change data; never infer or discuss protected traits; refuse requests to tag, sort, rank or select people by a protected trait or a proxy for one; refuse credit, pricing, fraud or AML decisions and any automated decision with legal or similarly significant effect. A test checks each file for them.
+
 ## Cognic safety file
 
 `cognic.plugin.json` is a draft written against Cognic's draft safety-file schema (`schemaVersion` "1-draft"). It declares:
 
-- the read effect only, with consent class "none";
-- data classes "confidential" and "sensitive";
-- one skill and one command, both at the "instruction" tier with the "workbench" profile, because the skill runs the engine's scripts (every `engine/*.py` file) with the taxonomy and its two reference tables as resources;
-- no hooks, servers, tools, agents or dependencies.
+- the read effect only, with consent class "none", data classes "confidential" and "sensitive", and the `employee` role;
+- three skills and three commands at the "instruction" tier with the "standard" profile, requiring only the reader's tools;
+- one agent, `customer-profiler`, at the "reader" tier with the reader's six tools, the three skills and its output schema;
+- one server, `profiles`: stdio, `/app/profile-reader --store /data/profile.db`, network denied, no credentials, the image pinned by its reproducible digest, and the `toolListDigest` of its tool list;
+- six tools, each with effect "read", tier "reader", enforcement "read-only", and strict input and output schemas;
+- no hooks and no dependencies. The builder, which writes the profile store (a "private" effect), is not declared until hosting says how such a process is admitted (`docs/OPEN-QUESTIONS.md`, Q11).
 
-Points to settle when plugin hosting lands:
-
-- **Personal data class.** The draft vocabulary has no "personal" data class, so "sensitive" stands for personal data here.
-- **Workbench effect.** If the harness counts any workbench script run as a private effect, `effects` becomes ["read", "private"] and the skill moves to the "worker" tier. Nothing else changes.
-- **Roles.** Every `scope.roles` is `["employee"]`, a broad role. A bank narrows access later through its own role bindings, and the name must match an actual admin role binding.
+Points to settle when plugin hosting lands are kept in `docs/OPEN-QUESTIONS.md`: the personal data class (Q2), skill and tool reference forms (Q4, Q33), the roles (Q5), and where the image is published (Q31).
 
 **Validation.** No JSON-schema package is installed, so `tools/validate_safety_file.py` is a small standard-library validator. It implements every keyword the draft schema uses and fails on any keyword it does not know. It is not a general JSON Schema implementation. The draft schema is not in this public repository. The safety-file schema test runs only when `COGNIC_SAFETY_SCHEMA` points to it; otherwise it is skipped.
 
