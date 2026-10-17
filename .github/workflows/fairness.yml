@@ -3,12 +3,13 @@ name: fairness
 # The fairness kit at full size: 70 chunks of 5,480 synthetic customers
 # (383,600), enough for every tag to reach 350 tagged customers in the
 # smallest group of every synthetic attribute. Too heavy for a shared machine,
-# so it runs here: by hand, and on pull requests that change the rules, the
-# engine, the generator or the kit. The job fails when the gate fails, and the
-# report is printed in the log and the job summary.
+# so it runs here: by hand, and on pushes that change the rules, the engine,
+# the generator or the kit (a push is compared with the commit before it, so a
+# documentation-only push does not start an hour-long run). The job fails when
+# the gate fails, and the report is printed in the log and the job summary.
 on:
   workflow_dispatch:
-  pull_request:
+  push:
     paths:
       - "taxonomy/**"
       - "engine/**"
