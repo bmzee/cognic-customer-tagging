@@ -4,8 +4,7 @@
   "pluginVersion": "0.1.0",
   "scope": {
     "roles": [
-      "relationship-manager",
-      "customer-analyst"
+      "employee"
     ],
     "agents": [
       "assistant"
@@ -26,8 +25,7 @@
       "path": "skills/customer-tagging/SKILL.md",
       "scope": {
         "roles": [
-          "relationship-manager",
-          "customer-analyst"
+          "employee"
         ],
         "agents": [
           "assistant"
@@ -59,8 +57,7 @@
       "path": "commands/tag-customers.md",
       "scope": {
         "roles": [
-          "relationship-manager",
-          "customer-analyst"
+          "employee"
         ],
         "agents": [
           "assistant"
