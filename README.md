@@ -34,6 +34,7 @@ A tag whose rule needs a missing field, such as an account opening date, is repo
 | `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled subset's expected tags |
 | `tests/` | `unittest` suite; latest results in `tests/RESULTS.md` |
 | `tools/validate_safety_file.py` | Standard-library validator for the safety file |
+| `.github/workflows/tests.yml` | CI: runs the tests on Python 3.9 and 3.12 |
 | `DESIGN.md` | Stages 2 and 3, and the compliance review |
 
 ## Running it
@@ -77,6 +78,8 @@ Run the tests:
 ```bash
 python3 -m unittest discover -s tests -t .
 ```
+
+CI runs the same command on Python 3.9 and 3.12 on every push and pull request (`.github/workflows/tests.yml`). The draft safety-file schema is not in this repository, so CI skips that one test.
 
 ## Data contract
 
