@@ -1,13 +1,13 @@
 # Test results
 
-Recorded on 2026-10-18 from the repository root (phase 9), after generating the data with `python3 data/generate.py`. CI runs the same suite on Python 3.9 to 3.13 on every push and pull request (without the private schema).
+Recorded on 2026-10-18 from the repository root (phase 10, the final run), after generating the data with `python3 data/generate.py`. CI runs the same suite on Python 3.9 to 3.13 on every push and pull request (without the private schema).
 
 | Python | Schema validation | Tests run | Result |
 | --- | --- | --- | --- |
-| 3.14.6 | with the draft schema (`COGNIC_SAFETY_SCHEMA` set) | 322 | OK |
-| 3.14.6 | without the schema | 322 | OK, 1 skipped (the schema test) |
-| 3.9.6 | with the draft schema | 322 | OK |
-| 3.9.6 | without the schema | 322 | OK, 1 skipped |
+| 3.14.6 | with the draft schema (`COGNIC_SAFETY_SCHEMA` set) | 330 | OK |
+| 3.14.6 | without the schema | 330 | OK, 1 skipped (the schema test) |
+| 3.9.6 | with the draft schema | 330 | OK |
+| 3.9.6 | without the schema | 330 | OK, 1 skipped |
 
 Commands:
 
@@ -27,6 +27,8 @@ What the suite covers:
 | `test_evals` | 6 | The 54 evaluation scenarios: the documented fields, unique ids, every kind and every rule covered, refusals with no calls and a rule each skill states, every expected call valid against the tool's input schema, every fact found in the reader's output for the fixture store, every result valid against its output schema, and no forbidden phrase in the results outside the quoted governance text. |
 | `test_opt_out` | 9 | The opt-out: which values count as an objection, the column read and not a protected trait, an objection needing no other attribute; the print-only engine skipping the customer and counting the rows; a rebuild storing only the id and the date, with every profile table equal to a store built as if the customers never existed and the reader showing no profile, list entry or count for them; following forgetting a customer at once and dropping their later events; a late objection still honoured with its earliest date kept. |
 | `test_governance` | 5 | The governance templates: all present and indexed, each marked for the bank's compliance team, no law, regulator or place named, the customer-rights template matching the opt-out the builder honours, and the retention and audit templates naming every table that holds customer data. |
+| `test_public_scan` | 4 | A last scan of every tracked file: no e-mail address (other than placeholders), no private host name or address, and no key or token pattern; every text file scanned. Model names are checked in `test_cli`. |
+| `test_integration_doc` | 4 | `docs/INTEGRATION.md` covers the safety-file entries, the image, the data copy, running the builder and what an administrator approves; every open question it links exists; every file it names exists; and the safety-file facts it states are true. |
 | `test_edge_cases` | 26 | No transactions, new customers, missing fields, currency conversion and unknown currencies, sign conventions, rows after the as-of date, duplicates, protected columns ignored. |
 | `test_incremental` | 10 | **The core property:** for seeded random orders of the same events (shuffled within each day, delayed up to the lateness bound, random batch sizes, duplicate deliveries and postings, corrections across a month end, reversals before their posting, a mid-stream home-country change, a closure, ticks that skip days and month ends, restarts and crashes mid-batch), the followed store equals a batch rebuild; 4 short and 1 long seed locally, 40 and 4 in CI on every push, 200 and 20 in the benchmark workflow. Also: late events kept aside and not applied, duplicates skipped and conflicts refused, unusable events rejected with a reason, older ticks ignored, a skipped month end still checked, a reader can open the store during and after following, and prevalence is recorded only when a tick moves the as-of date. The stream includes an objection to profiling mid-stream. |
 | `test_server` | 28 | The reader: legacy `initialize` and modern stateless requests (`server/discover`, -32022 for an unsupported version, -32602 for missing `_meta`), every JSON-RPC error code, bad arguments refused as tool errors (extra properties, wrong types, lengths, page caps, unknown tags), every tool's output for every synthetic customer valid against its own schema, `explain_tag` agreeing with the stored state, paging, prohibited uses and no names in results, a read-only connection that cannot write, no network, process or write-SQL code in `server/`, missing and over-budget stores, call timeouts, an invalid output never sent, a real stdio session through `bin/profile-reader`, and the safety-file declarations (tool entries, `toolListDigest`, `.mcp.json`). |
