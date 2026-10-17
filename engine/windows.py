@@ -15,9 +15,12 @@ import calendar
 import datetime
 from decimal import Decimal
 
+_BOUNDS = {}
+_RESOLVED = {}
+
 
 class Window(object):
-    __slots__ = ("start", "end", "months", "length_in_months", "unit", "size", "offset")
+    __slots__ = ("start", "end", "months", "length_in_months", "unit", "size", "offset", "month_labels", "_label")
 
     def __init__(self, start, end, months, length_in_months, unit, size, offset):
         self.start = start
@@ -27,12 +30,16 @@ class Window(object):
         self.unit = unit
         self.size = size
         self.offset = offset
+        self.month_labels = ["{:04d}-{:02d}".format(*ym) for ym in months] if months else None
+        self._label = None
 
     def contains(self, day):
         return self.start <= day <= self.end
 
     def label(self):
-        return "{} to {}".format(self.start.isoformat(), self.end.isoformat())
+        if self._label is None:
+            self._label = "{} to {}".format(self.start.isoformat(), self.end.isoformat())
+        return self._label
 
 
 def last_complete_month(as_of):
@@ -50,12 +57,26 @@ def shift_month(year_month, delta):
 
 
 def month_bounds(year_month):
-    year, month = year_month
-    last = calendar.monthrange(year, month)[1]
-    return datetime.date(year, month, 1), datetime.date(year, month, last)
+    bounds = _BOUNDS.get(year_month)
+    if bounds is None:
+        year, month = year_month
+        last = calendar.monthrange(year, month)[1]
+        bounds = _BOUNDS[year_month] = (datetime.date(year, month, 1), datetime.date(year, month, last))
+    return bounds
 
 
 def resolve(window, as_of):
+    """The Window for a window spec at as_of (cached: windows are never mutated)."""
+    key = (window.get("days"), window.get("offset_days"), window.get("months"), window.get("offset_months"), as_of)
+    resolved = _RESOLVED.get(key)
+    if resolved is None:
+        if len(_RESOLVED) > 50000:
+            _RESOLVED.clear()
+        resolved = _RESOLVED[key] = _resolve(window, as_of)
+    return resolved
+
+
+def _resolve(window, as_of):
     if "days" in window:
         days = int(window["days"])
         offset = int(window.get("offset_days", 0))

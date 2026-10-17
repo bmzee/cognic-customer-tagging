@@ -25,6 +25,8 @@ def _parse_args(argv):
     parser.add_argument("--include-unmet", action="store_true", help="also list tags whose rule was not met")
     parser.add_argument("--out-dir", help="write tagged.json and tagged.csv here (otherwise nothing is written)")
     parser.add_argument("--list-tags", action="store_true", help="print the taxonomy's tags and rules, then stop")
+    parser.add_argument("--taxonomy-hash", action="store_true",
+                        help="print the content hash of the taxonomy and its reference tables, then stop")
     return parser.parse_args(argv)
 
 
@@ -36,6 +38,9 @@ def _fail(message):
 def main(argv=None):
     args = _parse_args(argv)
     try:
+        if args.taxonomy_hash:
+            sys.stdout.write(load_taxonomy(args.taxonomy, verify_hash=False).content_hash + "\n")
+            return 0
         if args.list_tags:
             sys.stdout.write(output.list_tags_text(load_taxonomy(args.taxonomy)))
             return 0
@@ -47,7 +52,8 @@ def main(argv=None):
                 as_of = datetime.datetime.strptime(args.as_of, "%Y-%m-%d").date()
             except ValueError:
                 return _fail("--as-of must be YYYY-MM-DD")
-        result = run(args.customers, args.transactions, args.taxonomy, as_of)
+        evidence = "all" if (args.include_unmet or args.why or args.format == "text") else "held"
+        result = run(args.customers, args.transactions, args.taxonomy, as_of, evidence=evidence)
     except (DataError, TaxonomyError, OSError) as exc:
         return _fail(str(exc))
 

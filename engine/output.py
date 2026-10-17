@@ -8,10 +8,21 @@ from collections import OrderedDict
 from . import ENGINE_VERSION
 from .evaluate import OP_WORDS
 
-CSV_COLUMNS = ("as_of", "customer_id", "tag_id", "tag_name", "reason", "rule", "evidence")
+CSV_COLUMNS = ("as_of", "customer_id", "tag_id", "tag_name", "entered_on", "reason", "rule", "evidence")
 
 
-def _tag_entry(result):
+def _lifecycle_fields(run, customer_id, tag_id):
+    life = run.lifecycles.get(customer_id)
+    if life is None or tag_id not in life.entered_on:
+        return None
+    return OrderedDict([
+        ("entered_on", life.entered_on[tag_id].isoformat() if life.entered_on[tag_id] else ""),
+        ("new_this_month", life.new_this_month[tag_id]),
+        ("since_window_start", life.since_window_start[tag_id]),
+    ])
+
+
+def tag_entry(result, lifecycle_fields=None):
     entry = OrderedDict()
     entry["id"] = result.tag["id"]
     entry["name"] = result.tag["name"]
@@ -19,8 +30,9 @@ def _tag_entry(result):
     entry["reason"] = result.reason
     entry["rule"] = result.rule
     entry["evidence"] = result.evidence
-    if result.facts:
-        entry["facts"] = result.facts
+    entry["facts"] = result.facts
+    if lifecycle_fields is not None:
+        entry.update(lifecycle_fields)
     return entry
 
 
@@ -28,13 +40,23 @@ def customer_record(run, customer_id, include_unmet=False):
     results = run.results[customer_id]
     record = OrderedDict()
     record["customer_id"] = customer_id
-    record["tags"] = [_tag_entry(r) for r in results.values() if r.state is True]
+    record["as_of"] = run.as_of.isoformat()
+    record["tags"] = [tag_entry(r, _lifecycle_fields(run, customer_id, r.tag["id"]))
+                      for r in results.values() if r.state is True]
+    record["suppressed"] = [
+        OrderedDict([("id", r.tag["id"]), ("name", r.tag["name"]), ("suppressed_by", r.suppressed_by)])
+        for r in results.values() if r.suppressed_by
+    ]
     record["not_evaluated"] = [
         OrderedDict([("id", r.tag["id"]), ("name", r.tag["name"]), ("missing", r.missing)])
         for r in results.values() if r.state is None
     ]
+    life = run.lifecycles.get(customer_id)
+    if life is not None:
+        record["ended_this_month"] = list(life.ended_this_month)
+        record["last_checkpoint"] = life.last_checkpoint.isoformat() if life.last_checkpoint else ""
     if include_unmet:
-        record["not_met"] = [_tag_entry(r) for r in results.values() if r.state is False]
+        record["not_met"] = [tag_entry(r) for r in results.values() if r.state is False]
     record["data_notes"] = run.per_customer_notes[customer_id]
     return record
 
@@ -51,6 +73,7 @@ def run_record(run, customer_ids=None, include_unmet=False):
     record = OrderedDict()
     record["engine_version"] = ENGINE_VERSION
     record["taxonomy_version"] = run.taxonomy.version
+    record["taxonomy_hash"] = run.taxonomy.content_hash
     record["as_of"] = run.as_of.isoformat()
     record["base_currency"] = run.taxonomy.base_currency
     record["summary"] = OrderedDict([
@@ -72,7 +95,7 @@ def to_json(record):
 
 def needs_text(item):
     """'at least 6', 'at most 25%', or for a tag condition just 'yes'/'no'."""
-    if item["op"] == "==" and isinstance(item["threshold"], bool):
+    if item["metric"] == "tag":
         return item["threshold_display"]
     return "{} {}".format(OP_WORDS[item["op"]], item["threshold_display"])
 
@@ -93,12 +116,14 @@ def csv_rows(run, customer_ids=None):
         fired = [r for r in results.values() if r.state is True]
         if not fired:
             rows.append(OrderedDict([("as_of", as_of), ("customer_id", cid), ("tag_id", ""), ("tag_name", ""),
-                                     ("reason", "no tag matched"), ("rule", ""), ("evidence", "")]))
+                                     ("entered_on", ""), ("reason", "no tag matched"), ("rule", ""),
+                                     ("evidence", "")]))
         for r in fired:
+            life = _lifecycle_fields(run, cid, r.tag["id"])
             rows.append(OrderedDict([
                 ("as_of", as_of), ("customer_id", cid), ("tag_id", r.tag["id"]),
-                ("tag_name", r.tag["name"]), ("reason", r.reason), ("rule", r.rule),
-                ("evidence", _evidence_text(r.evidence)),
+                ("tag_name", r.tag["name"]), ("entered_on", life["entered_on"] if life else ""),
+                ("reason", r.reason), ("rule", r.rule), ("evidence", _evidence_text(r.evidence)),
             ]))
     return rows
 
@@ -112,29 +137,29 @@ def to_csv(run, customer_ids=None):
     return buffer.getvalue()
 
 
-def _evidence_lines(items, indent):
+def evidence_lines(items, indent):
     lines = []
     for item in items:
-        if "result" in item:
+        if item["result"] != "fact":
             line = "{}- {}: {} (needs {}) - {}".format(
                 indent, item["description"], item["display"], needs_text(item), item["result"])
         else:
             line = "{}- {}: {}".format(indent, item["description"], item["display"])
         extra = []
-        if "window" in item and "numerator_window" not in item:
+        if item["window"] and not item["numerator_window"]:
             extra.append(item["window"])
-        if "numerator_display" in item:
-            extra.append("{} of {}".format(item["numerator_display"], item["denominator_display"])
-                         if "numerator_window" not in item else
-                         "{} ({}) vs {} ({})".format(item["numerator_display"], item["numerator_window"],
-                                                     item["denominator_display"], item["denominator_window"]))
-        if item.get("months_met"):
+        if item["numerator_display"]:
+            if item["numerator_window"]:
+                extra.append("{} ({}) vs {} ({})".format(item["numerator_display"], item["numerator_window"],
+                                                         item["denominator_display"], item["denominator_window"]))
+            else:
+                extra.append("{} of {}".format(item["numerator_display"], item["denominator_display"]))
+        if item["months_met"]:
             extra.append("months: " + ", ".join(item["months_met"]))
-        if "median_month_display" in item:
-            extra.append("usual month: " + item["median_month_display"])
-        if "missing" in item:
+        extra.extend(item["details"])
+        if item["missing"]:
             extra.append("missing: " + ", ".join(item["missing"]))
-        if "note" in item:
+        if item["note"]:
             extra.append(item["note"])
         if extra:
             line += " [" + "; ".join(extra) + "]"
@@ -142,15 +167,23 @@ def _evidence_lines(items, indent):
     return lines
 
 
-def _result_lines(result):
-    lines = ["  * {}".format(result.tag["name"]),
-             "    Why: {}".format(result.reason),
-             "    Rule: {}".format(result.rule),
-             "    Evidence:"]
-    lines.extend(_evidence_lines(result.evidence, "      "))
+def _result_lines(result, life=None):
+    lines = ["  * {}".format(result.tag["name"])]
+    if life is not None:
+        if life["new_this_month"]:
+            lines.append("    Since: new this month (not yet held at a month-end check)")
+        elif life["entered_on"]:
+            lines.append("    Since: held at every month-end check since {}{}".format(
+                life["entered_on"], " (the start of the kept history)" if life["since_window_start"] else ""))
+    lines.extend(["    Why: {}".format(result.reason),
+                  "    Rule: {}".format(result.rule),
+                  "    Evidence:"])
+    lines.extend(evidence_lines(result.evidence, "      "))
     if result.facts:
         lines.append("    Also shown:")
-        lines.extend(_evidence_lines(result.facts, "      "))
+        lines.extend(evidence_lines(result.facts, "      "))
+    if result.suppressed_by:
+        lines.append("    Suppressed: {} takes priority in the same group".format(result.suppressed_by))
     return lines
 
 
@@ -159,16 +192,24 @@ def explain_text(run, customer_id, why=None):
     lines = ["Customer {}, as of {}".format(customer_id, run.as_of.isoformat())]
     if why is not None:
         result = results[why]
-        status = {True: "applies", False: "does not apply", None: "could not be evaluated"}[result.state]
+        if result.suppressed_by:
+            status = "does not apply: its rule is met, but {} takes priority".format(result.suppressed_by)
+        else:
+            status = {True: "applies", False: "does not apply", None: "could not be evaluated"}[result.state]
         lines.append("Tag {} ({}) {}.".format(result.tag["name"], why, status))
-        lines.extend(_result_lines(result))
+        lines.extend(_result_lines(result, _lifecycle_fields(run, customer_id, why)))
         if result.state is None:
             lines.append("    Missing data: " + ", ".join(result.missing))
     else:
         fired = [r for r in results.values() if r.state is True]
         lines.append("Tags ({}):".format(len(fired)) if fired else "Tags: none matched.")
         for result in fired:
-            lines.extend(_result_lines(result))
+            lines.extend(_result_lines(result, _lifecycle_fields(run, customer_id, result.tag["id"])))
+        suppressed = [r for r in results.values() if r.suppressed_by]
+        if suppressed:
+            lines.append("Suppressed by a higher-priority tag in the same group:")
+            for r in suppressed:
+                lines.append("  * {}: {} takes priority".format(r.tag["name"], r.suppressed_by))
         unknown = [r for r in results.values() if r.state is None]
         if unknown:
             lines.append("Not evaluated (missing data):")
@@ -186,8 +227,8 @@ def explain_text(run, customer_id, why=None):
 
 
 def list_tags_text(taxonomy):
-    lines = ["Taxonomy {} ({} tags, base currency {})".format(
-        taxonomy.version, len(taxonomy.tags), taxonomy.base_currency)]
+    lines = ["Taxonomy {} ({} tags, base currency {}, {})".format(
+        taxonomy.version, len(taxonomy.tags), taxonomy.base_currency, taxonomy.content_hash)]
     from .evaluate import rule_text
     for tag in taxonomy.tags:
         lines.append("")
@@ -196,4 +237,6 @@ def list_tags_text(taxonomy):
         lines.append("  Rule: {}".format(rule_text(tag["rule"], taxonomy.base_currency)))
         lines.append("  Reason shown: {}".format(tag["reason"]))
         lines.append("  Fields: {}".format(", ".join(tag["fields"])))
+        if tag["id"] in taxonomy.exclusive_of:
+            lines.append("  Exclusive group: {}".format(taxonomy.exclusive_of[tag["id"]]))
     return "\n".join(lines) + "\n"
