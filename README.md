@@ -35,6 +35,7 @@ A tag whose rule needs a missing field, such as an account opening date or a bal
 | `engine/build.py`, `engine/profile.py`, `engine/store.py` | The builder, how a customer's profile rows are written, and the SQLite profile store |
 | `engine/migrations/` | Numbered store migrations, applied in order and checked by checksum |
 | `engine/events.py`, `engine/feeds.py`, `engine/incremental.py` | The event model and CSV-to-events conversion, the JSONL and SQLite-outbox feed adapters, and continuous updates with the batch rebuild they always equal |
+| `server/`, `bin/profile-reader`, `.mcp.json` | The reader: a read-only MCP tool server over stdio, its entry point in the image, and its one stdio declaration |
 | `tools/bench.py`, `.github/workflows/benchmark.yml` | Scale benchmarks: a dense synthetic generator, rebuild time and continuous-update latency (large runs in CI only) |
 | `data/generate.py` | Seeded synthetic data generator |
 | `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled scenarios' expected tags |
@@ -150,6 +151,25 @@ Everything the builder reads is a versioned JSON event (`customer-tagging.event/
 - **Allowed lateness:** a month is sealed once it ended more than `--lateness-days` (default 3) before the as-of date; an event dated in a sealed month is kept in `late_events`, counted and not applied, and a rebuild folds it in.
 
 The property that proves it: for any seeded random order of the same events, with duplicates, late arrivals within the bound, restarts and crashes, the followed store equals a batch rebuild of the same events (`tests/test_incremental.py`; CI runs 40 short and 4 long seeds on every push).
+
+## The reader (read-only tool server)
+
+`python3 -m server --store profile.db` (in the image: `/app/profile-reader --store /data/profile.db`) answers staff questions through six tools, over stdio, standard library only:
+
+| Tool | Input | What it returns |
+| --- | --- | --- |
+| `list_tags` | optional `group` | Every tag's rule in words, the data it reads, polarity, limitations, exclusive group, and the intended and prohibited uses |
+| `get_customer_tags` | `customer_id` | The customer's current tags, each with reason, rule, every condition's evidence, `entered_on` and the as-of date; suppressed and not-evaluated tags; data notes |
+| `explain_tag` | `customer_id`, `tag_id` | Why a tag does or does not apply: the rule and every condition's value, threshold and result, the unmet conditions, missing data or the tag that took priority |
+| `find_customers_by_tag` | `tag_id`, optional `page`, `page_size` (at most 50) | Customer ids and display names only, one page at a time |
+| `tag_summary` | optional `group` | Per tag: how many hold it, are suppressed, cannot be evaluated, and the share holding it |
+| `customer_tag_history` | `customer_id` | The tags held at each month-end check, and when each entered or exited |
+
+- **Strict schemas.** Every input and output schema is a closed object with bounded strings and arrays, in the vocabulary Cognic's safety file accepts. Extra or mistyped arguments are refused as tool errors, and an output that breaks its own schema is never sent.
+- **Read-only.** Each call opens the store with `file:...?mode=ro` and `query_only`, checks it, answers and closes it. There is no network, no credential and no write path; a test refuses network, process or write-SQL code in `server/`.
+- **Limits.** Messages up to 64 KiB, arguments up to 4 KiB, pages of at most 50, a SQLite work budget per call and a 10-second time limit.
+- **Protocol.** JSON-RPC 2.0 over newline-delimited stdio. Modern stateless requests (protocol 2026-07-28: version and capabilities in each request's `_meta`, `server/discover`) and legacy clients that open with `initialize` (2025-11-25, 2025-06-18, 2025-03-26) are both served; see `docs/research/mcp-protocol.md`.
+- **No names.** The store holds no names, so `display_name` is a label for the record ("Customer C0042"), never the person's name (`docs/OPEN-QUESTIONS.md`, Q28).
 
 ## Data contract
 

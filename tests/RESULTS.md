@@ -1,13 +1,13 @@
 # Test results
 
-Recorded on 2026-10-18 from the repository root (phase 4), after generating the data with `python3 data/generate.py`. CI runs the same suite on Python 3.9 to 3.13 on every push and pull request (without the private schema).
+Recorded on 2026-10-18 from the repository root (phase 5), after generating the data with `python3 data/generate.py`. CI runs the same suite on Python 3.9 to 3.13 on every push and pull request (without the private schema).
 
 | Python | Schema validation | Tests run | Result |
 | --- | --- | --- | --- |
-| 3.14.6 | with the draft schema (`COGNIC_SAFETY_SCHEMA` set) | 228 | OK |
-| 3.14.6 | without the schema | 228 | OK, 1 skipped (the schema test) |
-| 3.9.6 | with the draft schema | 228 | OK |
-| 3.9.6 | without the schema | 228 | OK, 1 skipped |
+| 3.14.6 | with the draft schema (`COGNIC_SAFETY_SCHEMA` set) | 256 | OK |
+| 3.14.6 | without the schema | 256 | OK, 1 skipped (the schema test) |
+| 3.9.6 | with the draft schema | 256 | OK |
+| 3.9.6 | without the schema | 256 | OK, 1 skipped |
 
 Commands:
 
@@ -24,6 +24,7 @@ What the suite covers:
 | `test_taxonomy` | 46 | Shape (45 to 60 tags, the plan's groups, polarity, limitations, governance), version and content hash (a rule or reference-table change changes the hash; a stale hash or a missing changelog entry is refused), the fairness guard (protected traits, national origin, sexual orientation, health, family, political opinion, age, proxy and restricted categories, specific countries and currencies), and strict validation. |
 | `test_edge_cases` | 26 | No transactions, new customers, missing fields, currency conversion and unknown currencies, sign conventions, rows after the as-of date, duplicates, protected columns ignored. |
 | `test_incremental` | 9 | **The core property:** for seeded random orders of the same events (shuffled within each day, delayed up to the lateness bound, random batch sizes, duplicate deliveries and postings, corrections across a month end, reversals before their posting, a mid-stream home-country change, a closure, ticks that skip days and month ends, restarts and crashes mid-batch), the followed store equals a batch rebuild; 4 short and 1 long seed locally, 40 and 4 in CI on every push, 200 and 20 in the benchmark workflow. Also: late events kept aside and not applied, duplicates skipped and conflicts refused, unusable events rejected with a reason, older ticks ignored, a skipped month end still checked, and a reader can open the store during and after following. |
+| `test_server` | 28 | The reader: legacy `initialize` and modern stateless requests (`server/discover`, -32022 for an unsupported version, -32602 for missing `_meta`), every JSON-RPC error code, bad arguments refused as tool errors (extra properties, wrong types, lengths, page caps, unknown tags), every tool's output for every synthetic customer valid against its own schema, `explain_tag` agreeing with the stored state, paging, prohibited uses and no names in results, a read-only connection that cannot write, no network, process or write-SQL code in `server/`, missing and over-budget stores, call timeouts, an invalid output never sent, a real stdio session through `bin/profile-reader`, and the safety-file declarations (tool entries, `toolListDigest`, `.mcp.json`). |
 | `test_feeds` | 6 | JSONL feed reads complete lines only and resumes from its offset; a replaced or truncated file is refused; the SQLite outbox is polled by sequence number; a crash mid-feed resumes from the committed position exactly once; `--follow` on a CSV-built store. |
 | `test_store` | 20 | Rebuild determinism (byte-identical exports), the store holds exactly what a batch run computes (tags, `entered_on`, reasons, evidence, buckets), the runs table, retention, migrations from an empty store (once, in order, refusing changed or unknown ones), corrupt, truncated, half-built and stale stores refused, read-only connections cannot write, a failed rebuild leaves the previous store untouched, and the command line. |
 | `test_reference` | 17 | Counterparty cleaning and normalisation (one merchant behind several descriptors; rule order does not matter), pseudonymised people, merchant codes filling a missing category, restricted categories collapsed when read, balances. |
