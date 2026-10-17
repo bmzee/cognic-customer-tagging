@@ -15,7 +15,9 @@ from tests.helpers import ROOT
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 from validate_safety_file import Validator, load_json  # noqa: E402
 
-WRITING_MODULES = {"build.py", "cards.py", "profile.py", "store.py"}
+# Modules of the builder, which writes the profile store, and of the card
+# generator: not part of the read-only skill.
+WRITING_MODULES = {"build.py", "cards.py", "events.py", "feeds.py", "incremental.py", "profile.py", "store.py"}
 
 
 def frontmatter(path):
