@@ -32,7 +32,7 @@ flowchart LR
 ```
 
 1. **Builder** (`python3 -m engine.build`). Two modes share one code path. `--rebuild` reads the CSV copy, turns every row into an event and produces the whole store. `--follow` reads events from a feed adapter and applies each one incrementally. It writes only the plugin's own store: a `private` effect. It never writes bank data.
-2. **Profile store.** One SQLite file owned by the plugin, with numbered migrations in the repository. Tables: `meta`, `customers`, `ledger`, `events_seen`, `feature_buckets`, `tag_state`, `tag_history`, `runs`, `feed_checkpoints` and `late_events` (phase 3 and 4 give the columns).
+2. **Profile store.** One SQLite file owned by the plugin, with numbered migrations in `engine/migrations/`. Tables: `meta`, `customers`, `ledger`, `features`, `feature_buckets`, `tag_state`, `checkpoint_tags`, `tag_history` and `runs` (migration 0001); the continuous-update tables `events_seen`, `feed_checkpoints`, `late_events` and versioned customer attributes come with phase 4.
 3. **Reader tool server.** A separate process that speaks the Model Context Protocol over stdio and opens the store with `file:...?mode=ro`, so it cannot write even by mistake. Tools: `list_tags`, `get_customer_tags`, `explain_tag`, `find_customers_by_tag`, `tag_summary` and `customer_tag_history`, each with a strict input and output schema. Effect `read`, tier `reader`, consent `none`. It runs from a pinned image with no network and no credentials.
 4. **Skills, commands and one agent.** Markdown instructions: explain a customer's tags, explore a segment carefully, review the taxonomy. The `customer-profiler` agent has the `reader` tier, a finite list of the reader's tools and an explicit output schema. Every instruction file says: never change data, never infer or discuss protected traits, refuse to tag or rank people by them, and refuse credit, pricing or fraud decisions.
 
@@ -75,7 +75,7 @@ The property test generates a seeded event stream, processes it in many random o
 
 ## Retention and minimal data
 
-- **`history_months`** (default 13: a year of complete months plus the current one) keeps only the ledger rows and buckets that the longest rule window needs. Older rows are pruned, and the taxonomy loader refuses a window that reaches further back.
+- **`history_months`** (default 13: a year of complete months plus the current one) covers the longest rule window; the taxonomy loader refuses a window that reaches further back. The store keeps `history_months + lifecycle_months` calendar months back from the as-of month, so the oldest month-end checkpoint also sees a full window; older ledger rows and buckets are not kept.
 - **`lifecycle_months`** (default 6) is how many month-end checkpoints of tag history are kept. Each checkpoint costs one evaluation per customer in a rebuild, so it is kept short; older history lives in the store exports kept for audit.
 - The ledger keeps only the columns rules read: no names, no free-text descriptions, no account numbers. Protected-trait columns are never loaded.
 - A customer who objects is marked opted out: the builder removes their buckets, tags and history and keeps only the id and the flag, so a later event cannot re-profile them.
