@@ -49,8 +49,12 @@ class SafetyFile(unittest.TestCase):
         self.assertEqual(self.safety["effects"], ["read"])
         self.assertEqual(self.safety["consentClass"], "none")
         self.assertEqual(self.safety["dataClasses"], ["confidential", "sensitive"])
-        for key in ("hooks", "servers", "tools", "agents", "dependencies"):
+        for key in ("hooks", "dependencies"):
             self.assertEqual(self.safety[key], [], key)
+        # The one server is the read-only reader; every tool reads and nothing else.
+        self.assertEqual([s["id"] for s in self.safety["servers"]], ["profiles"])
+        for tool in self.safety["tools"]:
+            self.assertEqual((tool["effect"], tool["tier"], tool["enforcement"]), ("read", "reader", "read-only"))
 
     def test_every_component_is_declared_and_exists(self):
         skills = sorted(d for d in os.listdir(os.path.join(ROOT, "skills")) if not d.startswith("."))

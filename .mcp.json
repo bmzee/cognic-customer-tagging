@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "profiles": {
+      "command": "/app/profile-reader",
+      "args": ["--store", "/data/profile.db"]
+    }
+  }
+}

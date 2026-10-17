@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1-draft",
   "pluginId": "customer-tagging",
-  "pluginVersion": "0.2.0",
+  "pluginVersion": "0.3.0",
   "scope": {
     "roles": [
       "employee"
@@ -80,6 +80,1614 @@
   ],
   "agents": [],
   "hooks": [],
-  "servers": [],
-  "tools": []
+  "servers": [
+    {
+      "id": "profiles",
+      "image": "registry.invalid/customer-tagging-profiles@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": "stdio",
+      "command": "/app/profile-reader",
+      "args": [
+        "--store",
+        "/data/profile.db"
+      ],
+      "network": {
+        "mode": "deny",
+        "destinations": []
+      },
+      "credentials": [],
+      "toolListDigest": "sha256:0dc272e59b7260aa61c63224e2bdc135f54525d0a207e49a388c1ac9916a427b"
+    }
+  ],
+  "tools": [
+    {
+      "name": "list_tags",
+      "server": "profiles",
+      "description": "The tag taxonomy: every tag's rule in words, the data it reads, its limitations, and the intended and prohibited uses. Read-only. Never use for credit, pricing, fraud or AML decisions, or any automated decision with legal or similarly significant effect.",
+      "effect": "read",
+      "consentClass": "none",
+      "tier": "reader",
+      "dataClasses": [
+        "confidential",
+        "sensitive"
+      ],
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant"
+        ]
+      },
+      "credentials": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "description": "limit to one tag group"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "taxonomy_version": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "taxonomy_hash": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "description": "a tag id from list_tags"
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "group": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 400
+                },
+                "polarity": {
+                  "type": "string",
+                  "maxLength": 8,
+                  "enum": [
+                    "benefit",
+                    "burden",
+                    "neutral"
+                  ]
+                },
+                "rule": {
+                  "type": "string",
+                  "maxLength": 3000
+                },
+                "fields": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "maxItems": 30
+                },
+                "limitations": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "maxItems": 10
+                },
+                "exclusive_group": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "description": "empty when the tag is in no exclusive group"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "group",
+                "description",
+                "polarity",
+                "rule",
+                "fields",
+                "limitations",
+                "exclusive_group"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 60
+          },
+          "intended_use": {
+            "type": "string",
+            "maxLength": 600,
+            "description": "what tags may be used for"
+          },
+          "prohibited_uses": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "maxItems": 10,
+            "description": "what tags must never be used for"
+          }
+        },
+        "required": [
+          "taxonomy_version",
+          "taxonomy_hash",
+          "tags",
+          "intended_use",
+          "prohibited_uses"
+        ],
+        "additionalProperties": false
+      },
+      "enforcement": "read-only"
+    },
+    {
+      "name": "get_customer_tags",
+      "server": "profiles",
+      "description": "One customer's current tags, each with its reason, rule, every condition's evidence and its as-of date, plus suppressed and not-evaluated tags and data notes. Read-only. Never use for credit, pricing, fraud or AML decisions, or any automated decision with legal or similarly significant effect.",
+      "effect": "read",
+      "consentClass": "none",
+      "tier": "reader",
+      "dataClasses": [
+        "confidential",
+        "sensitive"
+      ],
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant"
+        ]
+      },
+      "credentials": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "description": "a customer id"
+          }
+        },
+        "required": [
+          "customer_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "description": "a customer id"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "as_of": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "YYYY-MM-DD, or empty"
+          },
+          "taxonomy_version": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "closed_on": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "YYYY-MM-DD, or empty"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "description": "a tag id from list_tags"
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "group": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 1000,
+                  "description": "the reason in plain words, filled from the evidence"
+                },
+                "rule": {
+                  "type": "string",
+                  "maxLength": 3000,
+                  "description": "the rule in words"
+                },
+                "entered_on": {
+                  "type": "string",
+                  "maxLength": 10,
+                  "description": "first month-end check of the current run, or empty if new this month"
+                },
+                "new_this_month": {
+                  "type": "boolean"
+                },
+                "since_window_start": {
+                  "type": "boolean",
+                  "description": "held since the start of the kept history"
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      "metric": {
+                        "type": "string",
+                        "maxLength": 32,
+                        "enum": [
+                          "count",
+                          "sum",
+                          "max",
+                          "count_per_month",
+                          "sum_per_month",
+                          "months_where",
+                          "distinct",
+                          "share",
+                          "ratio",
+                          "tenure_days",
+                          "tag",
+                          "recurring",
+                          "days_since_last",
+                          "balance"
+                        ]
+                      },
+                      "window": {
+                        "type": "string",
+                        "maxLength": 60,
+                        "description": "the dates the value covers"
+                      },
+                      "value": {
+                        "type": "number",
+                        "description": "the value the rule compared"
+                      },
+                      "display": {
+                        "type": "string",
+                        "maxLength": 160,
+                        "description": "the value as shown to staff"
+                      },
+                      "available": {
+                        "type": "boolean",
+                        "description": "false when the value could not be computed"
+                      },
+                      "op": {
+                        "type": "string",
+                        "maxLength": 2,
+                        "enum": [
+                          "",
+                          ">=",
+                          ">",
+                          "<=",
+                          "<",
+                          "=="
+                        ]
+                      },
+                      "threshold": {
+                        "type": "number"
+                      },
+                      "threshold_display": {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "result": {
+                        "type": "string",
+                        "maxLength": 10,
+                        "enum": [
+                          "met",
+                          "not met",
+                          "unknown",
+                          "fact"
+                        ]
+                      },
+                      "numerator_display": {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "denominator_display": {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "numerator_window": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "denominator_window": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "months_met": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 7
+                        },
+                        "maxItems": 120,
+                        "description": "YYYY-MM months that counted"
+                      },
+                      "missing": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 20,
+                        "description": "input fields that were missing"
+                      },
+                      "note": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "details": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        "maxItems": 50
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "description",
+                      "metric",
+                      "window",
+                      "value",
+                      "display",
+                      "available",
+                      "op",
+                      "threshold",
+                      "threshold_display",
+                      "result",
+                      "numerator_display",
+                      "denominator_display",
+                      "numerator_window",
+                      "denominator_window",
+                      "months_met",
+                      "missing",
+                      "note",
+                      "details"
+                    ],
+                    "additionalProperties": false,
+                    "description": "one condition of the rule: what was measured, against what, and the result"
+                  },
+                  "maxItems": 20
+                },
+                "facts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "description": {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      "metric": {
+                        "type": "string",
+                        "maxLength": 32,
+                        "enum": [
+                          "count",
+                          "sum",
+                          "max",
+                          "count_per_month",
+                          "sum_per_month",
+                          "months_where",
+                          "distinct",
+                          "share",
+                          "ratio",
+                          "tenure_days",
+                          "tag",
+                          "recurring",
+                          "days_since_last",
+                          "balance"
+                        ]
+                      },
+                      "window": {
+                        "type": "string",
+                        "maxLength": 60,
+                        "description": "the dates the value covers"
+                      },
+                      "value": {
+                        "type": "number",
+                        "description": "the value the rule compared"
+                      },
+                      "display": {
+                        "type": "string",
+                        "maxLength": 160,
+                        "description": "the value as shown to staff"
+                      },
+                      "available": {
+                        "type": "boolean",
+                        "description": "false when the value could not be computed"
+                      },
+                      "op": {
+                        "type": "string",
+                        "maxLength": 2,
+                        "enum": [
+                          "",
+                          ">=",
+                          ">",
+                          "<=",
+                          "<",
+                          "=="
+                        ]
+                      },
+                      "threshold": {
+                        "type": "number"
+                      },
+                      "threshold_display": {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "result": {
+                        "type": "string",
+                        "maxLength": 10,
+                        "enum": [
+                          "met",
+                          "not met",
+                          "unknown",
+                          "fact"
+                        ]
+                      },
+                      "numerator_display": {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "denominator_display": {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "numerator_window": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "denominator_window": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "months_met": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 7
+                        },
+                        "maxItems": 120,
+                        "description": "YYYY-MM months that counted"
+                      },
+                      "missing": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "maxItems": 20,
+                        "description": "input fields that were missing"
+                      },
+                      "note": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "details": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        "maxItems": 50
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "description",
+                      "metric",
+                      "window",
+                      "value",
+                      "display",
+                      "available",
+                      "op",
+                      "threshold",
+                      "threshold_display",
+                      "result",
+                      "numerator_display",
+                      "denominator_display",
+                      "numerator_window",
+                      "denominator_window",
+                      "months_met",
+                      "missing",
+                      "note",
+                      "details"
+                    ],
+                    "additionalProperties": false,
+                    "description": "one condition of the rule: what was measured, against what, and the result"
+                  },
+                  "maxItems": 10,
+                  "description": "extra evidence shown in the reason, never part of the decision"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "group",
+                "reason",
+                "rule",
+                "entered_on",
+                "new_this_month",
+                "since_window_start",
+                "evidence",
+                "facts"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 60
+          },
+          "suppressed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "description": "a tag id from list_tags"
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "suppressed_by": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "description": "a tag id from list_tags"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "suppressed_by"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 60
+          },
+          "not_evaluated": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "description": "a tag id from list_tags"
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "maxItems": 20
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "missing"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 60
+          },
+          "data_notes": {
+            "type": "object",
+            "properties": {
+              "transactions_used": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pending": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "transactions dated after the as-of date"
+              },
+              "rejected": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reason": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "reason",
+                    "count"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 50
+              }
+            },
+            "required": [
+              "transactions_used",
+              "pending",
+              "rejected"
+            ],
+            "additionalProperties": false
+          },
+          "intended_use": {
+            "type": "string",
+            "maxLength": 600,
+            "description": "what tags may be used for"
+          },
+          "prohibited_uses": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "maxItems": 10,
+            "description": "what tags must never be used for"
+          }
+        },
+        "required": [
+          "customer_id",
+          "found",
+          "as_of",
+          "taxonomy_version",
+          "closed_on",
+          "tags",
+          "suppressed",
+          "not_evaluated",
+          "data_notes",
+          "intended_use",
+          "prohibited_uses"
+        ],
+        "additionalProperties": false
+      },
+      "enforcement": "read-only"
+    },
+    {
+      "name": "explain_tag",
+      "server": "profiles",
+      "description": "Why one tag does or does not apply to one customer: the rule in words and every condition's value, threshold and result, including the unmet ones and any missing data. Read-only. Never use for credit, pricing, fraud or AML decisions, or any automated decision with legal or similarly significant effect.",
+      "effect": "read",
+      "consentClass": "none",
+      "tier": "reader",
+      "dataClasses": [
+        "confidential",
+        "sensitive"
+      ],
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant"
+        ]
+      },
+      "credentials": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "description": "a customer id"
+          },
+          "tag_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "description": "a tag id from list_tags"
+          }
+        },
+        "required": [
+          "customer_id",
+          "tag_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "description": "a customer id"
+          },
+          "tag_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "description": "a tag id from list_tags"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "as_of": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "YYYY-MM-DD, or empty"
+          },
+          "taxonomy_version": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 16,
+            "enum": [
+              "held",
+              "not_held",
+              "suppressed",
+              "not_evaluated",
+              "closed",
+              "unknown_customer"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 400
+          },
+          "rule": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "filled from the evidence; meaningful when the tag is held"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "metric": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "enum": [
+                    "count",
+                    "sum",
+                    "max",
+                    "count_per_month",
+                    "sum_per_month",
+                    "months_where",
+                    "distinct",
+                    "share",
+                    "ratio",
+                    "tenure_days",
+                    "tag",
+                    "recurring",
+                    "days_since_last",
+                    "balance"
+                  ]
+                },
+                "window": {
+                  "type": "string",
+                  "maxLength": 60,
+                  "description": "the dates the value covers"
+                },
+                "value": {
+                  "type": "number",
+                  "description": "the value the rule compared"
+                },
+                "display": {
+                  "type": "string",
+                  "maxLength": 160,
+                  "description": "the value as shown to staff"
+                },
+                "available": {
+                  "type": "boolean",
+                  "description": "false when the value could not be computed"
+                },
+                "op": {
+                  "type": "string",
+                  "maxLength": 2,
+                  "enum": [
+                    "",
+                    ">=",
+                    ">",
+                    "<=",
+                    "<",
+                    "=="
+                  ]
+                },
+                "threshold": {
+                  "type": "number"
+                },
+                "threshold_display": {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                "result": {
+                  "type": "string",
+                  "maxLength": 10,
+                  "enum": [
+                    "met",
+                    "not met",
+                    "unknown",
+                    "fact"
+                  ]
+                },
+                "numerator_display": {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                "denominator_display": {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                "numerator_window": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "denominator_window": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "months_met": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 7
+                  },
+                  "maxItems": 120,
+                  "description": "YYYY-MM months that counted"
+                },
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "maxItems": 20,
+                  "description": "input fields that were missing"
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "details": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "maxItems": 50
+                }
+              },
+              "required": [
+                "id",
+                "description",
+                "metric",
+                "window",
+                "value",
+                "display",
+                "available",
+                "op",
+                "threshold",
+                "threshold_display",
+                "result",
+                "numerator_display",
+                "denominator_display",
+                "numerator_window",
+                "denominator_window",
+                "months_met",
+                "missing",
+                "note",
+                "details"
+              ],
+              "additionalProperties": false,
+              "description": "one condition of the rule: what was measured, against what, and the result"
+            },
+            "maxItems": 20,
+            "description": "every condition, met or not"
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "metric": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "enum": [
+                    "count",
+                    "sum",
+                    "max",
+                    "count_per_month",
+                    "sum_per_month",
+                    "months_where",
+                    "distinct",
+                    "share",
+                    "ratio",
+                    "tenure_days",
+                    "tag",
+                    "recurring",
+                    "days_since_last",
+                    "balance"
+                  ]
+                },
+                "window": {
+                  "type": "string",
+                  "maxLength": 60,
+                  "description": "the dates the value covers"
+                },
+                "value": {
+                  "type": "number",
+                  "description": "the value the rule compared"
+                },
+                "display": {
+                  "type": "string",
+                  "maxLength": 160,
+                  "description": "the value as shown to staff"
+                },
+                "available": {
+                  "type": "boolean",
+                  "description": "false when the value could not be computed"
+                },
+                "op": {
+                  "type": "string",
+                  "maxLength": 2,
+                  "enum": [
+                    "",
+                    ">=",
+                    ">",
+                    "<=",
+                    "<",
+                    "=="
+                  ]
+                },
+                "threshold": {
+                  "type": "number"
+                },
+                "threshold_display": {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                "result": {
+                  "type": "string",
+                  "maxLength": 10,
+                  "enum": [
+                    "met",
+                    "not met",
+                    "unknown",
+                    "fact"
+                  ]
+                },
+                "numerator_display": {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                "denominator_display": {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                "numerator_window": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "denominator_window": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "months_met": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 7
+                  },
+                  "maxItems": 120,
+                  "description": "YYYY-MM months that counted"
+                },
+                "missing": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "maxItems": 20,
+                  "description": "input fields that were missing"
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "details": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "maxItems": 50
+                }
+              },
+              "required": [
+                "id",
+                "description",
+                "metric",
+                "window",
+                "value",
+                "display",
+                "available",
+                "op",
+                "threshold",
+                "threshold_display",
+                "result",
+                "numerator_display",
+                "denominator_display",
+                "numerator_window",
+                "denominator_window",
+                "months_met",
+                "missing",
+                "note",
+                "details"
+              ],
+              "additionalProperties": false,
+              "description": "one condition of the rule: what was measured, against what, and the result"
+            },
+            "maxItems": 10
+          },
+          "unmet": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "maxItems": 20,
+            "description": "ids of the conditions that were not met"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "maxItems": 20,
+            "description": "missing input fields, when not evaluated"
+          },
+          "suppressed_by": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "the higher-priority tag in the same group, or empty"
+          },
+          "entered_on": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "YYYY-MM-DD, or empty"
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "maxItems": 10
+          },
+          "intended_use": {
+            "type": "string",
+            "maxLength": 600,
+            "description": "what tags may be used for"
+          },
+          "prohibited_uses": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "maxItems": 10,
+            "description": "what tags must never be used for"
+          }
+        },
+        "required": [
+          "customer_id",
+          "tag_id",
+          "found",
+          "as_of",
+          "taxonomy_version",
+          "status",
+          "name",
+          "description",
+          "rule",
+          "reason",
+          "evidence",
+          "facts",
+          "unmet",
+          "missing",
+          "suppressed_by",
+          "entered_on",
+          "limitations",
+          "intended_use",
+          "prohibited_uses"
+        ],
+        "additionalProperties": false
+      },
+      "enforcement": "read-only"
+    },
+    {
+      "name": "find_customers_by_tag",
+      "server": "profiles",
+      "description": "Customers who hold a tag, one page at a time (at most 50 per page): customer ids and display names only. Use get_customer_tags or explain_tag to see why. Read-only. Never use for credit, pricing, fraud or AML decisions, or any automated decision with legal or similarly significant effect.",
+      "effect": "read",
+      "consentClass": "none",
+      "tier": "reader",
+      "dataClasses": [
+        "confidential",
+        "sensitive"
+      ],
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant"
+        ]
+      },
+      "credentials": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tag_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "description": "a tag id from list_tags"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "description": "1 for the first page"
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "required": [
+          "tag_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "tag_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "description": "a tag id from list_tags"
+          },
+          "as_of": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "YYYY-MM-DD, or empty"
+          },
+          "taxonomy_version": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "customers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "customer_id": {
+                  "type": "string",
+                  "maxLength": 100,
+                  "minLength": 1,
+                  "description": "a customer id"
+                },
+                "display_name": {
+                  "type": "string",
+                  "maxLength": 120
+                }
+              },
+              "required": [
+                "customer_id",
+                "display_name"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 50,
+            "description": "customer ids and display names only"
+          },
+          "next_page": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0 when this is the last page"
+          },
+          "intended_use": {
+            "type": "string",
+            "maxLength": 600,
+            "description": "what tags may be used for"
+          },
+          "prohibited_uses": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "maxItems": 10,
+            "description": "what tags must never be used for"
+          }
+        },
+        "required": [
+          "tag_id",
+          "as_of",
+          "taxonomy_version",
+          "total",
+          "page",
+          "page_size",
+          "customers",
+          "next_page",
+          "intended_use",
+          "prohibited_uses"
+        ],
+        "additionalProperties": false
+      },
+      "enforcement": "read-only"
+    },
+    {
+      "name": "tag_summary",
+      "server": "profiles",
+      "description": "How many customers hold, are suppressed for, or cannot be evaluated for each tag, and the share holding it. Aggregate counts only. Read-only.",
+      "effect": "read",
+      "consentClass": "none",
+      "tier": "reader",
+      "dataClasses": [
+        "confidential",
+        "sensitive"
+      ],
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant"
+        ]
+      },
+      "credentials": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "description": "limit to one tag group"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "YYYY-MM-DD, or empty"
+          },
+          "taxonomy_version": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "customers": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "customers in the store, closed accounts included"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "description": "a tag id from list_tags"
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "group": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "polarity": {
+                  "type": "string",
+                  "maxLength": 8,
+                  "enum": [
+                    "benefit",
+                    "burden",
+                    "neutral"
+                  ]
+                },
+                "held": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "suppressed": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "not_evaluated": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "prevalence": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "held divided by customers"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "group",
+                "polarity",
+                "held",
+                "suppressed",
+                "not_evaluated",
+                "prevalence"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 60
+          }
+        },
+        "required": [
+          "as_of",
+          "taxonomy_version",
+          "customers",
+          "tags"
+        ],
+        "additionalProperties": false
+      },
+      "enforcement": "read-only"
+    },
+    {
+      "name": "customer_tag_history",
+      "server": "profiles",
+      "description": "One customer's tags at each month-end check and when each tag entered or exited. Read-only. Never use for credit, pricing, fraud or AML decisions, or any automated decision with legal or similarly significant effect.",
+      "effect": "read",
+      "consentClass": "none",
+      "tier": "reader",
+      "dataClasses": [
+        "confidential",
+        "sensitive"
+      ],
+      "scope": {
+        "roles": [
+          "employee"
+        ],
+        "agents": [
+          "assistant"
+        ]
+      },
+      "credentials": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "description": "a customer id"
+          }
+        },
+        "required": [
+          "customer_id"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "description": "a customer id"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "as_of": {
+            "type": "string",
+            "maxLength": 10,
+            "description": "YYYY-MM-DD, or empty"
+          },
+          "taxonomy_version": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "lifecycle_months": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "checkpoints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "checkpoint": {
+                  "type": "string",
+                  "maxLength": 10,
+                  "description": "YYYY-MM-DD, or empty"
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "description": "a tag id from list_tags"
+                  },
+                  "maxItems": 60
+                }
+              },
+              "required": [
+                "checkpoint",
+                "tags"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 24,
+            "description": "the tags held at each month-end check"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "checkpoint": {
+                  "type": "string",
+                  "maxLength": 10,
+                  "description": "YYYY-MM-DD, or empty"
+                },
+                "tag_id": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "description": "a tag id from list_tags"
+                },
+                "event": {
+                  "type": "string",
+                  "maxLength": 8,
+                  "enum": [
+                    "entered",
+                    "exited"
+                  ]
+                },
+                "at_window_start": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "checkpoint",
+                "tag_id",
+                "event",
+                "at_window_start"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "customer_id",
+          "found",
+          "as_of",
+          "taxonomy_version",
+          "lifecycle_months",
+          "checkpoints",
+          "events"
+        ],
+        "additionalProperties": false
+      },
+      "enforcement": "read-only"
+    }
+  ]
 }

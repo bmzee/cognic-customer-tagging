@@ -122,5 +122,11 @@ Every source the research notes in this folder cite, read on the date shown. Fin
 | [Regulation B section 1002.2: definitions](https://www.consumerfinance.gov/rules-policy/regulations/1002/2/) | Consumer Financial Protection Bureau | 2026-10-17 | [regulation](regulation.md) |
 | [Regulation B section 1002.6: rules concerning evaluation of applications](https://www.consumerfinance.gov/rules-policy/regulations/1002/6/) | Consumer Financial Protection Bureau | 2026-10-17 | [regulation](regulation.md) |
 | [Regulation B section 1002.9: notifications](https://www.consumerfinance.gov/rules-policy/regulations/1002/9/) | Consumer Financial Protection Bureau | 2026-10-17 | [regulation](regulation.md) |
+| [Model Context Protocol: Specification (2026-07-28)](https://modelcontextprotocol.io/specification/latest) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
+| [Model Context Protocol: Base protocol (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28/basic) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
+| [Model Context Protocol: Versioning and compatibility (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
+| [Model Context Protocol: Discovery: server/discover (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28/server/discover) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
+| [Model Context Protocol: Tools (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
+| [Model Context Protocol: stdio transport (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
 
-118 sources across 8 notes.
+124 sources across 9 notes.
