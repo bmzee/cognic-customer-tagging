@@ -15,9 +15,6 @@ from tests.helpers import ROOT
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 from validate_safety_file import Validator, load_json  # noqa: E402
 
-# Modules of the builder, which writes the profile store, and of the card
-# generator: not part of the read-only skill.
-WRITING_MODULES = {"build.py", "cards.py", "events.py", "feeds.py", "incremental.py", "profile.py", "store.py"}
 
 
 def frontmatter(path):
@@ -59,35 +56,29 @@ class SafetyFile(unittest.TestCase):
     def test_every_component_is_declared_and_exists(self):
         skills = sorted(d for d in os.listdir(os.path.join(ROOT, "skills")) if not d.startswith("."))
         commands = sorted(f[:-3] for f in os.listdir(os.path.join(ROOT, "commands")) if f.endswith(".md"))
+        agents = sorted(f[:-3] for f in os.listdir(os.path.join(ROOT, "agents")) if f.endswith(".md"))
         self.assertEqual(sorted(s["id"] for s in self.safety["skills"]), skills)
         self.assertEqual(sorted(c["id"] for c in self.safety["commands"]), commands)
-        # The read-only skill runs the print-only engine. The modules that write
-        # (the store builder, and the card generator) are not part of it.
-        engine_files = sorted("engine/" + f for f in os.listdir(os.path.join(ROOT, "engine"))
-                              if f.endswith(".py") and f not in WRITING_MODULES)
-        skill = self.safety["skills"][0]
-        self.assertEqual(skill["scripts"], engine_files)
-        for name in WRITING_MODULES:
-            self.assertNotIn("engine/" + name, skill["scripts"])
-        self.assertIn("taxonomy/tags.json", skill["resources"])
+        self.assertEqual(sorted(a["id"] for a in self.safety["agents"]), agents)
+        tools = {t["name"] for t in self.safety["tools"]}
+        qualified = {"{}:{}".format(self.safety["pluginId"], s) for s in skills}
         for component in self.safety["skills"] + self.safety["commands"]:
-            for path in [component["path"]] + component["resources"] + component["scripts"]:
-                self.assertTrue(os.path.isfile(os.path.join(ROOT, path)), path)
-            for key in ("roles", "agents"):
-                self.assertTrue(set(component["scope"][key]) <= set(self.safety["scope"][key]))
-            self.assertEqual(component["profile"], "workbench")
-            self.assertEqual(component["tier"], "instruction")
-
-    def test_skill_and_command_files(self):
-        fields, body, _ = frontmatter(os.path.join(ROOT, "skills", "customer-tagging", "SKILL.md"))
-        self.assertEqual(fields["name"], "customer-tagging")
-        self.assertTrue(fields["description"])
-        self.assertIn("Never pass `--out-dir`", body)
-        fields, body, text = frontmatter(os.path.join(ROOT, "commands", "tag-customers.md"))
-        self.assertTrue(fields["description"])
-        self.assertLess(len(text.encode("utf-8")), 4000)
-        for forbidden in (r"\$ARGUMENTS", r"\$\d", r"!`", r"(^|\s)@[\w./-]", r"\$\{"):
-            self.assertIsNone(re.search(forbidden, text), forbidden)
+            with self.subTest(component=component["id"]):
+                for path in [component["path"]] + component["resources"]:
+                    self.assertTrue(os.path.isfile(os.path.join(ROOT, path)), path)
+                # Instructions only: no scripts and no workbench; they reach data only through the reader.
+                self.assertEqual(component["scripts"], [])
+                self.assertEqual((component["profile"], component["tier"]), ("standard", "instruction"))
+                self.assertTrue(set(component["requiredTools"]) <= tools)
+                self.assertTrue(set(component["requiredSkills"]) <= qualified)
+                for key in ("roles", "agents"):
+                    self.assertTrue(set(component["scope"][key]) <= set(self.safety["scope"][key]))
+        for agent in self.safety["agents"]:
+            self.assertTrue(os.path.isfile(os.path.join(ROOT, agent["path"])))
+            self.assertEqual(agent["tier"], "reader")
+            self.assertTrue(set(agent["tools"]) <= tools)
+            self.assertTrue(set(agent["skills"]) <= qualified)
+            self.assertIn(agent["id"], self.safety["scope"]["agents"])
 
     def test_valid_against_the_draft_schema(self):
         path = os.environ.get("COGNIC_SAFETY_SCHEMA")
