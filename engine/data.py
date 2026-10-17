@@ -291,7 +291,7 @@ def load_transactions(path, customers, taxonomy, as_of=None):
     per_customer = {cid: {"skipped": Counter(), "currency_defaulted": 0} for cid in customers}
     valid = []
     seen_ids = set()
-    for row in rows:
+    for line, row in enumerate(rows, start=2):
         cid = row.get("customer_id", "")
         customer = customers.get(cid)
         if customer is None:
@@ -310,6 +310,8 @@ def load_transactions(path, customers, taxonomy, as_of=None):
             seen_ids.add(txn.txn_id)
         if defaulted:
             per_customer[cid]["currency_defaulted"] += 1
+        if txn.txn_id is None:
+            txn.txn_id = "line-{:07d}".format(line)  # stable: the row's line in the file
         valid.append(txn)
 
     if as_of is None:
