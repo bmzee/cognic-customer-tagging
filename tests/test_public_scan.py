@@ -14,11 +14,17 @@ EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 EMAIL_ALLOWED = re.compile(r"@(example\.(com|org|net)|users\.noreply\.github\.com)$")
 PRIVATE_HOST = re.compile(r"\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(internal|intranet|corp|lan|local|localdomain)\b", re.I)
 PRIVATE_IP = re.compile(r"\b(10\.\d{1,3}|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b")
-SECRETS = re.compile(
-    r"-----BEGIN [A-Z ]*PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b|\bgh[pousr]_[A-Za-z0-9]{30,}\b|"
-    r"\bgithub_pat_[A-Za-z0-9_]{20,}\b|\bxox[abprs]-[A-Za-z0-9-]{10,}\b|\bsk-[A-Za-z0-9]{20,}\b|"
-    r"\bAIza[0-9A-Za-z_-]{35}\b|(password|passwd|secret|api[_-]?key|token)\s*[:=]\s*['\"][^'\"]{6,}['\"]",
-    re.I)
+# Token prefixes are split so that secret scanners do not flag this file itself.
+SECRETS = re.compile("|".join([
+    r"-----BEGIN [A-Z ]*PRIVATE " + r"KEY-----",
+    r"\b" + "AK" + r"IA[0-9A-Z]{16}\b",
+    r"\b" + "g" + r"h[pousr]_[A-Za-z0-9]{30,}\b",
+    r"\b" + "github" + r"_pat_[A-Za-z0-9_]{20,}\b",
+    r"\b" + "xo" + r"x[abprs]-[A-Za-z0-9-]{10,}\b",
+    r"\b" + "s" + r"k-[A-Za-z0-9]{20,}\b",
+    r"\b" + "AI" + r"za[0-9A-Za-z_-]{35}\b",
+    r"(password|passwd|secret|api[_-]?key|token)\s*[:=]\s*['\"][^'\"]{6,}['\"]",
+]), re.I)
 
 
 def tracked_files():
