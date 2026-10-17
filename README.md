@@ -36,6 +36,7 @@ A tag whose rule needs a missing field, such as an account opening date or a bal
 | `engine/migrations/` | Numbered store migrations, applied in order and checked by checksum |
 | `engine/events.py`, `engine/feeds.py`, `engine/incremental.py` | The event model and CSV-to-events conversion, the JSONL and SQLite-outbox feed adapters, and continuous updates with the batch rebuild they always equal |
 | `server/`, `bin/profile-reader`, `.mcp.json` | The reader: a read-only MCP tool server over stdio, its entry point in the image, and its one stdio declaration |
+| `Containerfile`, `.dockerignore`, `.github/workflows/image.yml`, `tools/smoke.py`, `tools/image_digest.py` | The reader's image (built in CI only), its reproducibility check and the smoke test |
 | `tools/bench.py`, `.github/workflows/benchmark.yml` | Scale benchmarks: a dense synthetic generator, rebuild time and continuous-update latency (large runs in CI only) |
 | `data/generate.py` | Seeded synthetic data generator |
 | `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled scenarios' expected tags |
@@ -170,6 +171,18 @@ The property that proves it: for any seeded random order of the same events, wit
 - **Limits.** Messages up to 64 KiB, arguments up to 4 KiB, pages of at most 50, a SQLite work budget per call and a 10-second time limit.
 - **Protocol.** JSON-RPC 2.0 over newline-delimited stdio. Modern stateless requests (protocol 2026-07-28: version and capabilities in each request's `_meta`, `server/discover`) and legacy clients that open with `initialize` (2025-11-25, 2025-06-18, 2025-03-26) are both served; see `docs/research/mcp-protocol.md`.
 - **No names.** The store holds no names, so `display_name` is a label for the record ("Customer C0042"), never the person's name (`docs/OPEN-QUESTIONS.md`, Q28).
+
+## The image
+
+`Containerfile` builds the reader's image, in CI only (`.github/workflows/image.yml`); images are never built on a shared machine.
+
+- **Base:** `python:3.12-slim`, pinned by its multi-architecture index digest.
+- **Contents:** the code (`engine/`, `server/`), the taxonomy and a read-only synthetic fixture store compiled in a build stage from `data/`, at `/data/profile.db`. Nothing else: no tests, docs, CSV files or safety file.
+- **Runtime:** no package is installed at build or run time; the user is uid 10001; the entry point is `/app/profile-reader --store /data/profile.db`, exactly the command the safety file pins.
+- **Reproducible:** `SOURCE_DATE_EPOCH` fixes every timestamp (the builder's run clock included) and BuildKit rewrites layer timestamps, so two builds of a commit give the same manifest digest. CI builds twice and fails if they differ, and compares the digest with the one pinned in `cognic.plugin.json`.
+- **Smoke test:** CI runs the server in the image with `--network none --read-only --cap-drop ALL`, initialises, lists the tools (their digest must equal the safety file's `toolListDigest`), calls every tool once and validates each result, and checks the container cannot write its store. The same `tools/smoke.py` runs against a local reader in the test suite.
+
+In production the bank's store is mounted read-only at `/data/profile.db` over the fixture (`docs/OPEN-QUESTIONS.md`, Q29). Where the image is published is an operator decision (Q31).
 
 ## Data contract
 
