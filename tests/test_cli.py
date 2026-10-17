@@ -153,6 +153,10 @@ class StaticGuarantees(unittest.TestCase):
                 with open(path, encoding="utf-8") as handle:
                     yield name, handle.read()
 
+    # The builder records when a run started and finished in the runs table;
+    # that is the only place the clock is read, and never in a calculation.
+    CLOCK_ALLOWED = {"build.py": {"now"}}
+
     def test_engine_has_no_network_randomness_or_clock(self):
         for name, source in self._engine_sources():
             tree = ast.parse(source)
@@ -166,7 +170,8 @@ class StaticGuarantees(unittest.TestCase):
                 for module in modules:
                     self.assertNotIn(module, self.FORBIDDEN_MODULES, "{} imports {}".format(name, module))
             clock = [node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
-                     and node.attr in ("today", "now", "utcnow", "time", "monotonic", "perf_counter")]
+                     and node.attr in ("today", "now", "utcnow", "time", "monotonic", "perf_counter")
+                     and node.attr not in self.CLOCK_ALLOWED.get(name, ())]
             self.assertEqual(clock, [], "{} reads the clock".format(name))
 
     def test_no_model_names_in_code_or_config(self):
