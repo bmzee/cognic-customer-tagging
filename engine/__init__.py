@@ -1,0 +1,58 @@
+"""Deterministic, explainable customer-tagging rules engine (stage 1).
+
+Reads customers.csv and transactions.csv, applies the declarative rules in
+taxonomy/tags.json and returns, for each customer, the tags whose rules were
+met, each with its rule and the evidence that produced it.
+
+Standard library only. No network access, no randomness and no wall-clock
+time: the result depends only on the input files, the taxonomy and the
+as-of date. The engine never modifies its inputs.
+"""
+
+import os
+from collections import OrderedDict
+
+ENGINE_VERSION = "0.1.0"
+
+PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_TAXONOMY = os.path.join(os.path.dirname(PACKAGE_DIR), "taxonomy", "tags.json")
+
+from .data import DataError, load_customers, load_transactions  # noqa: E402
+from .evaluate import evaluate_customer  # noqa: E402
+from .taxonomy import TaxonomyError, load_taxonomy, load_taxonomy_data  # noqa: E402
+
+
+class Run(object):
+    """The result of one engine run: per-customer tag results plus notes."""
+
+    def __init__(self, taxonomy, customers, as_of, results, customer_notes, run_notes, per_customer_notes):
+        self.taxonomy = taxonomy
+        self.customers = customers
+        self.as_of = as_of
+        self.results = results
+        self.customer_notes = customer_notes
+        self.run_notes = run_notes
+        self.per_customer_notes = per_customer_notes
+
+    def tags_for(self, customer_id):
+        return [tag_id for tag_id, r in self.results[customer_id].items() if r.state is True]
+
+
+def run(customers_path, transactions_path, taxonomy=None, as_of=None):
+    """Tag every customer. taxonomy may be a path, a loaded Taxonomy or None (default file)."""
+    if taxonomy is None or isinstance(taxonomy, str):
+        taxonomy = load_taxonomy(taxonomy or DEFAULT_TAXONOMY)
+    customers, customer_notes = load_customers(customers_path, taxonomy.base_currency)
+    txns, as_of, run_notes, per_customer = load_transactions(
+        transactions_path, customers, taxonomy.fx_rates, as_of
+    )
+    results = OrderedDict(
+        (cid, evaluate_customer(taxonomy, customers[cid], txns[cid], as_of)) for cid in customers
+    )
+    return Run(taxonomy, customers, as_of, results, customer_notes, run_notes, per_customer)
+
+
+__all__ = [
+    "DEFAULT_TAXONOMY", "ENGINE_VERSION", "DataError", "Run", "TaxonomyError",
+    "load_customers", "load_taxonomy", "load_taxonomy_data", "load_transactions", "run",
+]

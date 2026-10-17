@@ -1,0 +1,328 @@
+{
+  "description": "Expected tags for the labelled scenario customers in this synthetic data set. Worked out by hand from each scenario's behaviour and the rules in taxonomy/tags.json; the test suite checks the engine against them.",
+  "as_of": "2026-09-30",
+  "seed": 20261017,
+  "customers": [
+    {
+      "customer_id": "C0001",
+      "scenario": "salary every month",
+      "expected_tags": [
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0002",
+      "scenario": "salary 5 of last 6 months (near miss)",
+      "expected_tags": []
+    },
+    {
+      "customer_id": "C0003",
+      "scenario": "freelance income that swings month to month",
+      "expected_tags": [
+        "business-income",
+        "irregular-income"
+      ]
+    },
+    {
+      "customer_id": "C0004",
+      "scenario": "gig work from several clients",
+      "expected_tags": [
+        "business-income",
+        "multi-source-income"
+      ]
+    },
+    {
+      "customer_id": "C0005",
+      "scenario": "money received from abroad every month",
+      "expected_tags": [
+        "remittance-receiver"
+      ]
+    },
+    {
+      "customer_id": "C0006",
+      "scenario": "money from abroad 2 of last 6 months (near miss)",
+      "expected_tags": []
+    },
+    {
+      "customer_id": "C0007",
+      "scenario": "salary rise in the last 3 months",
+      "expected_tags": [
+        "rising-income",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0008",
+      "scenario": "salary replaced by small freelance income",
+      "expected_tags": [
+        "falling-income"
+      ]
+    },
+    {
+      "customer_id": "C0009",
+      "scenario": "one large transfer received in August",
+      "expected_tags": [
+        "large-recent-inflow",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0010",
+      "scenario": "high monthly salary",
+      "expected_tags": [
+        "high-inflow",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0011",
+      "scenario": "rent, loan and bills every month",
+      "expected_tags": [
+        "bill-payer",
+        "loan-repayer",
+        "rent-payer",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0012",
+      "scenario": "utility bill 4 of last 6 months (near miss)",
+      "expected_tags": [
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0013",
+      "scenario": "quarterly insurance premiums",
+      "expected_tags": [
+        "insurance-payer",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0014",
+      "scenario": "most spending by card",
+      "expected_tags": [
+        "card-heavy-spender",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0015",
+      "scenario": "card spending, 12 card payments in 90 days (near miss)",
+      "expected_tags": [
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0016",
+      "scenario": "online shopping and three subscriptions",
+      "expected_tags": [
+        "digital-first",
+        "online-shopper",
+        "salary-earner",
+        "subscription-user"
+      ]
+    },
+    {
+      "customer_id": "C0017",
+      "scenario": "all payments in the mobile app",
+      "expected_tags": [
+        "digital-first",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0018",
+      "scenario": "75% of payments digital (near miss)",
+      "expected_tags": [
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0019",
+      "scenario": "pays bills and transfers in a branch",
+      "expected_tags": [
+        "bill-payer",
+        "branch-reliant",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0020",
+      "scenario": "most spending taken as cash",
+      "expected_tags": [
+        "high-cash-user",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0021",
+      "scenario": "cash withdrawals, 3 in 90 days (near miss)",
+      "expected_tags": [
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0022",
+      "scenario": "cash deposits twice a month",
+      "expected_tags": [
+        "cash-depositor"
+      ]
+    },
+    {
+      "customer_id": "C0023",
+      "scenario": "monthly transfer to savings",
+      "expected_tags": [
+        "salary-earner",
+        "saver"
+      ]
+    },
+    {
+      "customer_id": "C0024",
+      "scenario": "keeps a third of income each month",
+      "expected_tags": [
+        "salary-earner",
+        "saver"
+      ]
+    },
+    {
+      "customer_id": "C0025",
+      "scenario": "savings transfers 4 of last 6 months (near miss)",
+      "expected_tags": [
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0026",
+      "scenario": "two investment purchases",
+      "expected_tags": [
+        "investor",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0027",
+      "scenario": "spending above income for 6 months",
+      "expected_tags": [
+        "salary-earner",
+        "spending-exceeds-inflow"
+      ]
+    },
+    {
+      "customer_id": "C0028",
+      "scenario": "four trips abroad",
+      "expected_tags": [
+        "frequent-traveller",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0029",
+      "scenario": "two trips abroad (near miss)",
+      "expected_tags": [
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0030",
+      "scenario": "online purchases in euros",
+      "expected_tags": [
+        "foreign-currency-spender",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0031",
+      "scenario": "new customer with first transactions",
+      "expected_tags": [
+        "new-customer"
+      ]
+    },
+    {
+      "customer_id": "C0032",
+      "scenario": "new customer with no transactions",
+      "expected_tags": [
+        "new-customer"
+      ]
+    },
+    {
+      "customer_id": "C0033",
+      "scenario": "long-standing and active",
+      "expected_tags": [
+        "established-customer",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0034",
+      "scenario": "almost three years a customer (near miss)",
+      "expected_tags": [
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0035",
+      "scenario": "no activity since December",
+      "expected_tags": [
+        "dormant"
+      ]
+    },
+    {
+      "customer_id": "C0036",
+      "scenario": "activity dropped sharply after June",
+      "expected_tags": [
+        "going-dormant",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0037",
+      "scenario": "quiet for six months, then active again",
+      "expected_tags": [
+        "re-engaged"
+      ]
+    },
+    {
+      "customer_id": "C0038",
+      "scenario": "many person-to-person transfers",
+      "expected_tags": [
+        "p2p-transfer-active",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0039",
+      "scenario": "frequent bank charges",
+      "expected_tags": [
+        "frequent-fee-payer",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0040",
+      "scenario": "sends money abroad every month",
+      "expected_tags": [
+        "remittance-sender",
+        "salary-earner"
+      ]
+    },
+    {
+      "customer_id": "C0041",
+      "scenario": "opening date and home country missing",
+      "expected_tags": [
+        "salary-earner"
+      ],
+      "expected_not_evaluated": [
+        "established-customer",
+        "frequent-traveller",
+        "new-customer"
+      ]
+    },
+    {
+      "customer_id": "C0042",
+      "scenario": "light balanced activity, no tag expected",
+      "expected_tags": []
+    }
+  ]
+}

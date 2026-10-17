@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "1-draft",
+  "pluginId": "customer-tagging",
+  "pluginVersion": "0.1.0",
+  "scope": {
+    "roles": [
+      "relationship-manager",
+      "customer-analyst"
+    ],
+    "agents": [
+      "assistant"
+    ]
+  },
+  "effects": [
+    "read"
+  ],
+  "consentClass": "none",
+  "dataClasses": [
+    "confidential",
+    "sensitive"
+  ],
+  "dependencies": [],
+  "skills": [
+    {
+      "id": "customer-tagging",
+      "path": "skills/customer-tagging/SKILL.md",
+      "scope": {
+        "roles": [
+          "relationship-manager",
+          "customer-analyst"
+        ],
+        "agents": [
+          "assistant"
+        ]
+      },
+      "profile": "workbench",
+      "resources": [
+        "taxonomy/tags.json"
+      ],
+      "scripts": [
+        "engine/__init__.py",
+        "engine/__main__.py",
+        "engine/data.py",
+        "engine/evaluate.py",
+        "engine/features.py",
+        "engine/output.py",
+        "engine/policy.py",
+        "engine/taxonomy.py",
+        "engine/windows.py"
+      ],
+      "requiredTools": [],
+      "requiredSkills": [],
+      "tier": "instruction"
+    }
+  ],
+  "commands": [
+    {
+      "id": "tag-customers",
+      "path": "commands/tag-customers.md",
+      "scope": {
+        "roles": [
+          "relationship-manager",
+          "customer-analyst"
+        ],
+        "agents": [
+          "assistant"
+        ]
+      },
+      "profile": "workbench",
+      "resources": [],
+      "scripts": [],
+      "requiredTools": [],
+      "requiredSkills": [
+        "customer-tagging:customer-tagging"
+      ],
+      "tier": "instruction"
+    }
+  ],
+  "agents": [],
+  "hooks": [],
+  "servers": [],
+  "tools": []
+}
