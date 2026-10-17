@@ -148,7 +148,7 @@ test_unknown_metric (tests.test_taxonomy.StrictValidation.test_unknown_metric) .
 test_unknown_op (tests.test_taxonomy.StrictValidation.test_unknown_op) ... ok
 
 ----------------------------------------------------------------------
-Ran 117 tests in 6.885s
+Ran 117 tests in 7.556s
 
 OK
 ```
