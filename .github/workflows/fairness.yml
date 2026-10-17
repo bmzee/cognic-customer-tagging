@@ -1,0 +1,49 @@
+name: fairness
+
+# The fairness kit at full size: 70 chunks of 5,480 synthetic customers
+# (383,600), enough for every tag to reach 350 tagged customers in the
+# smallest group of every synthetic attribute. Too heavy for a shared machine,
+# so it runs here: by hand, and on pushes that change the rules, the engine,
+# the generator or the kit (a push is compared with the commit before it, so a
+# documentation-only push does not start an hour-long run). The job fails when
+# the gate fails, and the report is printed in the log and the job summary.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "taxonomy/**"
+      - "engine/**"
+      - "data/generate.py"
+      - "tools/fairness.py"
+      - ".github/workflows/fairness.yml"
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes an older full-size run pointless.
+concurrency:
+  group: fairness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fairness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Run the fairness kit (synthetic customers and attributes only)
+        run: python tools/fairness.py run --chunks 70 --out "$RUNNER_TEMP/fairness-report.md"
+      - name: Show the report
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/fairness-report.md" ]; then
+            cat "$RUNNER_TEMP/fairness-report.md" >> "$GITHUB_STEP_SUMMARY"
+            echo "----- begin docs/fairness-report.md -----"
+            cat "$RUNNER_TEMP/fairness-report.md"
+            echo "----- end docs/fairness-report.md -----"
+          fi

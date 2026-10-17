@@ -4,7 +4,7 @@ description: A taxonomy review report for the tag owner - coverage, prevalence, 
 
 Load the tag-review skill and follow its checklist.
 
-Call `list_tags` and `tag_summary`, read the drift and fairness reports if they are available, and write a short report: coverage (tags that often cannot be evaluated), prevalence (tags no one or nearly everyone holds), drift alerts, fairness findings, and cards past their review date. Give counts, shares and thresholds exactly. End with the actions for the owner to consider; each goes through change control.
+Call `list_tags` and `tag_summary`, read the drift report (`docs/drift-report.md`) and the fairness report (`docs/fairness-report.md`), and write a short report: coverage (tags that often cannot be evaluated), prevalence (tags no one or nearly everyone holds), drift alerts, fairness findings, and cards past their review date. Give counts, shares and thresholds exactly. End with the actions for the owner to consider; each goes through change control.
 
 ## Always
 

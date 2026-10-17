@@ -242,3 +242,31 @@ def write_features(connection, taxonomy):
 def write_meta(connection, values):
     connection.executemany("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
                            [(k, "" if v is None else str(v)) for k, v in OrderedDict(values).items()])
+
+
+SPREAD_BANDS = ("0", "1", "2", "3", "4+")
+
+
+def write_prevalence(connection, run_id, taxonomy):
+    """Record, for this run, how many customers hold, are suppressed for or
+    cannot be evaluated for each tag, and how many tags each customer holds.
+    Counts only; the drift report reads them."""
+    counts = {tag_id: {"held": 0, "suppressed": 0, "not_evaluated": 0} for tag_id in taxonomy.by_id}
+    for tag_id, status, number in connection.execute(
+            "SELECT tag_id, status, COUNT(*) FROM tag_state GROUP BY tag_id, status"):
+        if tag_id in counts:
+            counts[tag_id][status] = number
+    connection.executemany(
+        "INSERT INTO run_tags (run_id, tag_id, held, suppressed, not_evaluated) VALUES (?, ?, ?, ?, ?)",
+        [(run_id, tag_id, c["held"], c["suppressed"], c["not_evaluated"]) for tag_id, c in counts.items()])
+    spread = dict.fromkeys(SPREAD_BANDS, 0)
+    holding = 0
+    for held, number in connection.execute(
+            "SELECT held, COUNT(*) FROM (SELECT COUNT(*) AS held FROM tag_state WHERE status = 'held' "
+            "GROUP BY customer_id) GROUP BY held"):
+        spread["4+" if held >= 4 else str(held)] += number
+        holding += number
+    customers = connection.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
+    spread["0"] = customers - holding
+    connection.executemany("INSERT INTO run_spread (run_id, band, customers) VALUES (?, ?, ?)",
+                           [(run_id, band, spread[band]) for band in SPREAD_BANDS])

@@ -38,6 +38,9 @@ A tag whose rule needs a missing field, such as an account opening date or a bal
 | `engine/events.py`, `engine/feeds.py`, `engine/incremental.py` | The event model and CSV-to-events conversion, the JSONL and SQLite-outbox feed adapters, and continuous updates with the batch rebuild they always equal |
 | `server/`, `bin/profile-reader`, `.mcp.json` | The reader: a read-only MCP tool server over stdio, its entry point in the image, and its one stdio declaration |
 | `Containerfile`, `.dockerignore`, `.github/workflows/image.yml`, `tools/smoke.py`, `tools/image_digest.py` | The reader's image (built in CI only), its reproducibility check and the smoke test |
+| `evals/scenarios.json`, `evals/README.md` | 54 evaluation scenarios (staff question, expected tool calls, facts the answer must contain, phrases it must not, refusals) and their format |
+| `tools/fairness.py`, `.github/workflows/fairness.yml`, `docs/fairness-report.md` | The fairness kit on synthetic attributes (tests and a report only, never in the engine or the reader), its full-size CI run, and the report |
+| `tools/drift.py`, `docs/drift-report.md` | Tag-prevalence drift from the runs a store records, and an example report |
 | `tools/bench.py`, `.github/workflows/benchmark.yml` | Scale benchmarks: a dense synthetic generator, rebuild time and continuous-update latency (large runs in CI only) |
 | `data/generate.py` | Seeded synthetic data generator |
 | `data/*.csv`, `data/expected_tags.json` | Generated data and the labelled scenarios' expected tags |
@@ -47,7 +50,7 @@ A tag whose rule needs a missing field, such as an account opening date or a bal
 | `docs/tags/` | One generated card per tag, and an index |
 | `docs/STATUS.md`, `docs/OPEN-QUESTIONS.md` | Build status per phase, and the questions only Cognic's hosting can settle |
 | `DESIGN.md` | Target architecture: builder, profile store, reader tool server, skills and agent; why incremental equals batch; decisions from the research |
-| `docs/research/` | Research notes on eight topics, each ending with what we adopt and reject, and `SOURCES.md` |
+| `docs/research/` | Research notes on the plan's eight topics, the MCP specification, the skill format and evaluation, each ending with what we adopt and reject, and `SOURCES.md` |
 
 ## Running it
 
@@ -136,6 +139,7 @@ CI runs the same command on Python 3.9 to 3.13 on every push and pull request (`
 | `tag_state` | Held tags with reason, rule, evidence and `entered_on`; suppressed tags; not-evaluated tags with the missing fields |
 | `checkpoint_tags`, `tag_history` | Tags held at each month-end checkpoint, and the entered and exited events between them |
 | `runs` | One row per builder run: as-of date, versions, taxonomy hash, input snapshot hash, counts, start and finish |
+| `run_tags`, `run_spread` | For every rebuild and every tick that moves the as-of date: per tag, how many customers hold it, are suppressed for it or cannot be evaluated for it, and how many tags each customer holds (counts only; read by the drift report) |
 
 **Retention.** The store keeps `history_months` (13) plus `lifecycle_months` (6) calendar months back from the as-of month. `history_months` covers the longest rule window, and the extra months let the oldest month-end checkpoint see a full window, so the store's history equals a batch run's. Nothing older is kept: tags need nothing older, and data minimisation forbids keeping it.
 
@@ -287,7 +291,7 @@ These hold everywhere in the plugin. The engine enforces them in code, in `engin
 - **Patterns, never causes.** A tag says what was seen ("salary credits stopped"), never why.
 - **Explainable, no scores.** Every tag shows its rule and the evidence that produced it. There are no unexplained scores and no combined rating.
 - **Intended use and prohibited uses.** Tags are for service and personalisation by a relationship manager. They must never be used for credit decisions, pricing, fraud or AML decisions, or any automated decision with legal or similarly significant effect; financial-stress tags are support signals only. Every tag card says so.
-- **Read-only.** The engine never modifies its inputs. Without `--out-dir` it writes nothing at all, and the skill always runs it that way.
+- **Read-only.** The engine never modifies its inputs, and without `--out-dir` it writes nothing at all. The builder writes only the plugin's own profile store; the reader, the skills, the commands and the agent only read.
 - **Minimal data.** Only the columns listed in the data contract are loaded.
 - **Synthetic data only** in this repository. There is no real customer data, and no bank names, hosts or logins.
 - **No model names** appear in code, configuration or docs.
@@ -300,6 +304,12 @@ All three are instructions only: they reach data through the reader's read-only 
 - **Commands.** `/tag-customers` (a customer's tags, or how many hold each tag), `/explain-customer` (one customer, or why one tag does or does not apply), `/tag-report` (the taxonomy review). Each is under 4,000 bytes and expands no arguments.
 - **Agent.** `customer-profiler` has the reader tier, exactly the reader's six tools, the three skills, no model setting, and an output schema it must return.
 - **The same four rules in every file:** never change data; never infer or discuss protected traits; refuse requests to tag, sort, rank or select people by a protected trait or a proxy for one; refuse credit, pricing, fraud or AML decisions and any automated decision with legal or similarly significant effect. A test checks each file for them.
+
+## Evaluation, fairness and drift
+
+- **Evaluation scenarios** (`evals/scenarios.json`, format in `evals/README.md`). 54 staff questions: explaining a customer's tags, "why not", segments, tag meanings, review numbers, history, and 13 refusals (protected traits, ranking by a proxy, credit, pricing, AML, collections, and changing or deleting data). Each lists the tool calls expected with exact arguments, the facts the answer must contain and the phrases it must not. `tests/test_evals.py` checks every call against the tool's input schema and every fact against what the reader returns for the synthetic fixture store, so no scenario expects something the tools do not say. Grading an assistant's answers is left to Cognic's runner.
+- **Fairness kit** (`tools/fairness.py`). Tests and a report only: neither the engine nor the reader imports it, and the engine is never given the attributes. The kit generates synthetic customers and, in a separate file, synthetic stand-in attributes, tags the customers with the engine, and joins the two itself. Three scenarios: *null* (attributes independent of behaviour: no tag may fail), *planted-proxy* (attributes decide the foreign country of transactions, the restricted category and payee of a monthly payment, and protected columns in the customer file: the engine's output must be identical to the null scenario's) and *canary* (test-only tags reading a behaviour planted to follow an attribute: a strong and a subtle canary must fail, a near miss must not). Per tag and attribute it reports group rates, the four-fifths impact ratio with its interval, Bonferroni-corrected tests (Fisher's exact test for small cells), Cramer's V and the uncertainty coefficient, and the chance level from shuffled attributes. `tests/test_fairness.py` runs it small; `.github/workflows/fairness.yml` runs it at 383,600 customers, enough for every tag to reach 350 tagged customers in the smallest group, and fails on the gate. The report is `docs/fairness-report.md`.
+- **Drift** (`tools/drift.py`). The builder records, with every rebuild and every tick that moves the as-of date, how many customers hold, are suppressed for or cannot be evaluated for each tag, and how many tags each customer holds (migration 0003; counts only). The drift report compares each run with a frozen baseline (the first three runs after a taxonomy change): WARN at a 25% relative change of at least 1 point, ALERT at 50% and 2 points, both needing p below 0.01; a tag falling to zero, a 20% population change and the spread's stability index also alert. It reads several stores, since a rebuilt store keeps only its latest run. `docs/drift-report.md` is an example from the synthetic data followed month by month.
 
 ## Cognic safety file
 

@@ -83,7 +83,9 @@
       },
       "profile": "standard",
       "resources": [
-        "docs/tags/README.md"
+        "docs/tags/README.md",
+        "docs/drift-report.md",
+        "docs/fairness-report.md"
       ],
       "scripts": [],
       "requiredTools": [
@@ -156,7 +158,10 @@
         ]
       },
       "profile": "standard",
-      "resources": [],
+      "resources": [
+        "docs/drift-report.md",
+        "docs/fairness-report.md"
+      ],
       "scripts": [],
       "requiredTools": [
         "list_tags",
@@ -336,7 +341,7 @@
   "servers": [
     {
       "id": "profiles",
-      "image": "registry.invalid/customer-tagging-profiles@sha256:79377a3ab0063218ecd54b18803ab3c240a2d714738161bd5dd6407962735f04",
+      "image": "registry.invalid/customer-tagging-profiles@sha256:e104587ec11a8549b816984dbc5692e66effd3f7dfada7d43accb5d7d0716178",
       "transport": "stdio",
       "command": "/app/profile-reader",
       "args": [

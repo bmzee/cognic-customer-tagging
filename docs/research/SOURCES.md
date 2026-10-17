@@ -130,5 +130,7 @@ Every source the research notes in this folder cite, read on the date shown. Fin
 | [Model Context Protocol: stdio transport (2026-07-28)](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/stdio) | Model Context Protocol project | 2026-10-18 | [mcp-protocol](mcp-protocol.md) |
 | [Agent Skills specification](https://agentskills.io/specification) | Agent Skills project | 2026-10-18 | [agent-instructions](agent-instructions.md) |
 | [LLM06:2025 Excessive Agency](https://genai.owasp.org/llmrisk/llm062025-excessive-agency/) | OWASP Gen AI Security Project | 2026-10-18 | [agent-instructions](agent-instructions.md) |
+| [τ-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains](https://arxiv.org/abs/2406.12045) | arXiv | 2026-10-18 | [evaluation](evaluation.md) |
+| [Berkeley Function-Calling Leaderboard (blog 8)](https://gorilla.cs.berkeley.edu/blogs/8_berkeley_function_calling_leaderboard.html) | UC Berkeley Gorilla project | 2026-10-18 | [evaluation](evaluation.md) |
 
-126 sources across 10 notes.
+128 sources across 11 notes.
