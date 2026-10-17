@@ -47,8 +47,9 @@ from .events import EventError
 RANK = {"posted": 0, "reversed": 1}
 DEFAULT_LATENESS_DAYS = 3
 
-# Tables the invariant compares; runs, late_events and feed_checkpoints record
-# what happened when, so they are not part of the profile.
+# Tables the invariant compares; runs (with run_tags and run_spread),
+# late_events and feed_checkpoints record what happened when, so they are not
+# part of the profile.
 STATE_TABLES = ("meta", "schema_migrations", "customers", "customer_versions", "closures", "txn_registers",
                 "ledger", "features", "feature_buckets", "tag_state", "checkpoint_tags", "tag_history",
                 "events_seen", "rejected_events")
@@ -183,6 +184,7 @@ def rebuild_from_events(raw_events, store_path, taxonomy=None, as_of=None, pre_r
             "events_rejected) VALUES ('rebuild', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (_iso(as_of) or "", ENGINE_VERSION, taxonomy.version, taxonomy.content_hash, snapshot, len(customers),
              txn_count, held, store_module.canonical(notes or {}), started, clock(), read, applied, rejected))
+        profile.write_prevalence(connection, connection.execute("SELECT last_insert_rowid()").fetchone()[0], taxonomy)
         profile.write_meta(connection, [("state", store_module.STATE_READY)])
         connection.execute("COMMIT")
         connection.execute("VACUUM")
@@ -367,6 +369,7 @@ class Follower(object):
         counts = OrderedDict([("read", 0), ("applied", 0), ("duplicate", 0), ("rejected", 0), ("late", 0)])
         started = self.clock()
         connection = self.connection
+        as_of_before = self.as_of
         connection.execute("BEGIN IMMEDIATE")
         try:
             dirty = OrderedDict()
@@ -390,6 +393,10 @@ class Follower(object):
                  store_module.canonical({"feed": feed, "position": str(position) if feed else None}),
                  started, self.clock(), counts["read"], counts["applied"], counts["duplicate"], counts["rejected"],
                  counts["late"]))
+            if self.as_of != as_of_before:
+                # A tick re-evaluated every customer: record prevalence for drift.
+                profile.write_prevalence(connection, connection.execute("SELECT last_insert_rowid()").fetchone()[0],
+                                         self.taxonomy)
             connection.execute("COMMIT")
         except BaseException:
             connection.execute("ROLLBACK")

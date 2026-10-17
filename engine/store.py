@@ -46,6 +46,8 @@ EXPORT_TABLES = OrderedDict([
     ("late_events", "event_id"),
     ("feed_checkpoints", "feed"),
     ("runs", "run_id"),
+    ("run_tags", "run_id, tag_id"),
+    ("run_spread", "run_id, band"),
 ])
 EXPORT_EXCLUDED_COLUMNS = {"runs": ("started_at", "finished_at")}
 

@@ -390,6 +390,35 @@ class Ticks(unittest.TestCase):
             shutil.rmtree(folder, ignore_errors=True)
 
 
+class Prevalence(unittest.TestCase):
+    def test_prevalence_is_recorded_when_a_tick_moves_the_as_of_date_only(self):
+        folder = tempfile.mkdtemp(prefix="tagging-prevalence-")
+        try:
+            follower = Follower(os.path.join(folder, "s.db"), TAXONOMY, LATENESS, clock=lambda: "t")
+            try:
+                follower.apply([ev.make("c", "customer.updated", "2024-01-01", "P1", {
+                    "account_open_date": "2024-01-01", "home_country": "US", "home_currency": "USD"}),
+                    ev.make("t1", "clock.tick", "2026-08-31")])
+                follower.apply([ev.make("p", "transaction.posted", "2026-09-01", "P1",
+                                        {"txn_id": "a", "amount": "-10.00", "currency": "USD"})])
+                follower.apply([ev.make("t0", "clock.tick", "2026-08-20")])  # older: the as-of does not move
+                follower.apply([ev.make("t2", "clock.tick", "2026-09-30")])
+                runs = [row[0] for row in follower.connection.execute("SELECT run_id FROM runs ORDER BY run_id")]
+                recorded = [row[0] for row in follower.connection.execute(
+                    "SELECT DISTINCT run_id FROM run_tags ORDER BY run_id")]
+                bands = follower.connection.execute(
+                    "SELECT SUM(customers) FROM run_spread WHERE run_id = ?", (runs[-1],)).fetchone()[0]
+                tags = follower.connection.execute(
+                    "SELECT COUNT(*) FROM run_tags WHERE run_id = ?", (runs[-1],)).fetchone()[0]
+            finally:
+                follower.close()
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
+        self.assertEqual(len(runs), 4)
+        self.assertEqual(recorded, [runs[0], runs[3]])
+        self.assertEqual((bands, tags), (1, len(TAXONOMY.by_id)))
+
+
 class ReadOnlyWhileFollowing(unittest.TestCase):
     def test_a_reader_can_open_the_store_during_and_after_following(self):
         folder = tempfile.mkdtemp(prefix="tagging-wal-")

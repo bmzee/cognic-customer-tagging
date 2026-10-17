@@ -100,6 +100,28 @@ class Rebuild(StoreCase):
         self.assertEqual(row[7], self.summary["tags_held"])
         self.assertTrue(row[8] and row[9])
 
+    def test_a_rebuild_records_tag_prevalence_for_drift(self):
+        connection = store_module.open_store(self.path, TAXONOMY)
+        try:
+            run_id = connection.execute("SELECT run_id FROM runs").fetchone()[0]
+            recorded = {tag: (held, suppressed, not_evaluated) for tag, held, suppressed, not_evaluated in
+                        connection.execute("SELECT tag_id, held, suppressed, not_evaluated FROM run_tags "
+                                           "WHERE run_id = ?", (run_id,))}
+            live = {tag: [0, 0, 0] for tag in TAXONOMY.by_id}
+            for tag, status, number in connection.execute(
+                    "SELECT tag_id, status, COUNT(*) FROM tag_state GROUP BY tag_id, status"):
+                live[tag][("held", "suppressed", "not_evaluated").index(status)] = number
+            spread = dict(connection.execute("SELECT band, customers FROM run_spread WHERE run_id = ?", (run_id,)))
+            holders = connection.execute(
+                "SELECT COUNT(DISTINCT customer_id) FROM tag_state WHERE status = 'held'").fetchone()[0]
+        finally:
+            connection.close()
+        self.assertEqual(recorded, {tag: tuple(v) for tag, v in live.items()})
+        self.assertEqual(sorted(spread), ["0", "1", "2", "3", "4+"])
+        self.assertEqual(sum(spread.values()), 300)
+        self.assertEqual(spread["0"], 300 - holders)
+        self.assertEqual(sum(held for held, _, _ in recorded.values()), self.summary["tags_held"])
+
     def test_the_export_leaves_out_the_clock(self):
         connection = store_module.open_store(self.path, TAXONOMY)
         try:
@@ -161,7 +183,7 @@ class Migrations(unittest.TestCase):
             self.assertEqual(store_module.apply_migrations(connection), [])
             tables = {r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
             for table in ("meta", "customers", "ledger", "features", "feature_buckets", "tag_state",
-                          "checkpoint_tags", "tag_history", "runs", "schema_migrations"):
+                          "checkpoint_tags", "tag_history", "runs", "run_tags", "run_spread", "schema_migrations"):
                 self.assertIn(table, tables)
         finally:
             connection.close()
