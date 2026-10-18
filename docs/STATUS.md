@@ -1,6 +1,6 @@
 # Build status
 
-One row per phase of the full build. Each phase has its own branch, cut from the previous phase's branch, and a draft pull request whose base is that previous branch. The maintainer reviews the stack from the bottom up and merges it; this build never merges.
+One row per phase of the full build. **The build is complete: phases 0 to 10 are done**, each on its own branch cut from the previous phase's branch, with a draft pull request whose base is that previous branch (#3 at the bottom to #13 at the top). Every check is green on every pull request. The maintainer reviews the stack from the bottom up and merges it; this build never merges. What only Cognic's hosting, the bank or its administrator can settle is in `OPEN-QUESTIONS.md` (Q1 to Q42), and how the plugin installs is in `INTEGRATION.md`.
 
 Test counts are from `python3 -m unittest discover -s tests -t .`: "with schema" means `COGNIC_SAFETY_SCHEMA` pointed at a local copy of the draft safety-file schema; CI never has the schema (see `OPEN-QUESTIONS.md`, Q1), so there the schema test is skipped.
 
