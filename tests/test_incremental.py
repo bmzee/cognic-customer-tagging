@@ -10,6 +10,7 @@ CT_PROPERTY_SEEDS=60 python3 -m unittest tests.test_incremental
 import datetime
 import os
 import random
+import re
 import shutil
 import tempfile
 import unittest
@@ -157,11 +158,24 @@ class CrashingFollower(Follower):
         raise RuntimeError("simulated crash")
 
 
+def run_totals(connection):
+    """The totals the latest runs row recorded, and the store's, counted afresh."""
+    recorded = connection.execute(
+        "SELECT customers, transactions, tags_held FROM runs ORDER BY run_id DESC LIMIT 1").fetchone()
+    counted = (connection.execute("SELECT COUNT(*) FROM customers").fetchone()[0],
+               connection.execute("SELECT COUNT(*) FROM ledger").fetchone()[0],
+               connection.execute("SELECT COUNT(*) FROM tag_state WHERE status = 'held'").fetchone()[0])
+    return tuple(recorded), counted
+
+
 def run_incremental(path, batches, seed):
+    """Follow the batches; returns the state export, the number of late events
+    and the first batch whose runs row did not match the store (or None)."""
     rng = random.Random(seed * 104729 + 3)
     follower = Follower(path, TAXONOMY, LATENESS, clock=lambda: "t")
+    wrong = None
     try:
-        for batch in batches:
+        for number, batch in enumerate(batches):
             if rng.random() < 0.03:
                 follower.close()
                 crashing = CrashingFollower(path, TAXONOMY, LATENESS, clock=lambda: "t")
@@ -172,11 +186,14 @@ def run_incremental(path, batches, seed):
                 crashing.close()
                 follower = Follower(path, TAXONOMY, LATENESS, clock=lambda: "t")
             follower.apply(batch)
+            recorded, counted = run_totals(follower.connection)
+            if recorded != counted and wrong is None:
+                wrong = "batch {}: runs recorded {}, the store holds {}".format(number, recorded, counted)
             if rng.random() < 0.05:
                 follower.close()
                 follower = Follower(path, TAXONOMY, LATENESS, clock=lambda: "t")
         late = follower.connection.execute("SELECT COUNT(*) FROM late_events").fetchone()[0]
-        return export_state(follower.connection), late
+        return export_state(follower.connection), late, wrong
     finally:
         follower.close()
 
@@ -198,7 +215,7 @@ def first_difference(a, b):
 
 
 def _differs(stream, seed, folder, tag):
-    inc, _ = run_incremental(os.path.join(folder, "shrink-i-{}.db".format(tag)), deliveries(stream, seed), seed)
+    inc, _, _ = run_incremental(os.path.join(folder, "shrink-i-{}.db".format(tag)), deliveries(stream, seed), seed)
     bat = run_batch(os.path.join(folder, "shrink-b-{}.db".format(tag)), stream.unique())
     return inc != bat
 
@@ -238,9 +255,10 @@ class IncrementalEqualsBatch(unittest.TestCase):
         stream = stream or Stream(seed)
         inc_path = os.path.join(self.dir, "inc-{}.db".format(seed))
         bat_path = os.path.join(self.dir, "bat-{}.db".format(seed))
-        incremental_dump, late = run_incremental(inc_path, deliveries(stream, seed), seed)
+        incremental_dump, late, wrong = run_incremental(inc_path, deliveries(stream, seed), seed)
         batch_dump = run_batch(bat_path, stream.unique())
         self.assertEqual(late, 0, "seed {}: an event was late inside the bound".format(seed))
+        self.assertIsNone(wrong, "seed {}: a runs row does not match the store".format(seed))
         if incremental_dump != batch_dump:
             kept = shrink(stream, seed, self.dir)
             self.fail("seed {}: incremental store differs from the batch rebuild\n{}\nsmallest failing set: {} "
@@ -420,6 +438,97 @@ class Prevalence(unittest.TestCase):
         self.assertEqual(len(runs), 4)
         self.assertEqual(recorded, [runs[0], runs[3]])
         self.assertEqual((bands, tags), (1, len(TAXONOMY.by_id)))
+
+
+def _posting(event_id, day, cid, txn_id, amount="-25.00", category="groceries"):
+    return ev.make(event_id, "transaction.posted", day, cid, {
+        "txn_id": txn_id, "amount": amount, "currency": "USD", "channel": "card_pos", "category": category})
+
+
+class RunTotals(unittest.TestCase):
+    """A follow batch records the store's totals without counting whole tables:
+    the previous run's totals plus the change in each customer it touched."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="tagging-totals-")
+        self.follower = Follower(os.path.join(self.dir, "s.db"), TAXONOMY, LATENESS, clock=lambda: "t")
+
+    def tearDown(self):
+        self.follower.close()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _batches(self):
+        opened = {"account_open_date": "2024-01-01", "home_country": "US", "home_currency": "USD"}
+        history = [_posting("h{}".format(d), datetime.date(2026, m, d), "A", "h{}-{}".format(m, d),
+                            category=("groceries", "dining", "fuel")[d % 3])
+                   for m in (6, 7, 8) for d in range(1, 29, 3)]
+        salary = [ev.make("s{}".format(m), "transaction.posted", datetime.date(2026, m, 25), "A", {
+            "txn_id": "s{}".format(m), "amount": "3000.00", "currency": "USD", "direction": "credit",
+            "channel": "incoming", "category": "salary", "counterparty": "SYN-EMPLOYER-001"}) for m in (6, 7, 8)]
+        return [
+            ("a new customer and a tick", [ev.make("c", "customer.updated", "2024-01-01", "A", opened)] + history
+             + salary + [ev.make("t1", "clock.tick", "2026-08-31")]),
+            ("a posting", [_posting("p", "2026-09-01", "A", "a")]),
+            ("a customer with no attributes yet", [_posting("q", "2026-09-01", "B", "b")]),
+            ("a correction moving the posting", [ev.make("k", "transaction.corrected", "2026-09-02", "A", {
+                "txn_id": "a", "amount": "-40.00", "currency": "USD", "channel": "card_pos", "category": "dining",
+                "posted_date": "2026-09-02"}, version=1)]),
+            ("a reversal", [ev.make("r", "transaction.reversed", "2026-09-03", "A", {"txn_id": "a"}, version=2)]),
+            ("an attribute version that loses", [ev.make("z", "customer.updated", "2024-01-01", "A", opened)]),
+            ("a duplicate", [_posting("q", "2026-09-01", "B", "b")]),
+            ("a rejected event", [_posting("bad", "2026-09-01", "A", "x", amount="abc")]),
+            ("an opt-out of a stored customer", [ev.make("o", "customer.updated", "2026-09-02", "B",
+                                                         {"profiling_opt_out": "true"})]),
+            ("a new customer opting out in its first batch", [
+                _posting("n1", "2026-09-01", "C", "c1"), _posting("n2", "2026-09-02", "C", "c2"),
+                ev.make("o2", "customer.updated", "2026-09-02", "C", {"profiling_opt_out": "true"})]),
+            ("an older tick", [ev.make("t0", "clock.tick", "2026-08-20")]),
+            ("a tick", [ev.make("t2", "clock.tick", "2026-09-30")]),
+            ("several customers in one batch", [_posting("m1", "2026-09-30", "A", "m1"),
+                                                _posting("m2", "2026-09-29", "D", "m2"),
+                                                _posting("m3", "2026-09-30", "D", "m3", category="dining")]),
+        ]
+
+    def test_every_batch_records_the_totals_of_the_store(self):
+        held = []
+        for name, batch in self._batches():
+            self.follower.apply(batch)
+            recorded, counted = run_totals(self.follower.connection)
+            self.assertEqual(recorded, counted, name)
+            held.append(counted[2])
+        self.assertGreater(max(held), 0, "some batch must change the number of held tags")
+        self.assertGreater(len(set(held)), 1, "the held count must change between batches")
+
+    def test_a_crashed_batch_leaves_the_next_one_correct(self):
+        batches = self._batches()
+        for _, batch in batches[:2]:
+            self.follower.apply(batch)
+        path = self.follower.path
+        self.follower.close()
+        crashing = CrashingFollower(path, TAXONOMY, LATENESS, clock=lambda: "t")
+        with self.assertRaises(RuntimeError):
+            crashing.apply(batches[2][1])
+        crashing.close()
+        self.follower = Follower(path, TAXONOMY, LATENESS, clock=lambda: "t")
+        for name, batch in batches[2:]:
+            self.follower.apply(batch)
+            recorded, counted = run_totals(self.follower.connection)
+            self.assertEqual(recorded, counted, name)
+
+    def test_a_batch_without_a_tick_counts_no_whole_table(self):
+        for _, batch in self._batches():
+            self.follower.apply(batch)
+        statements = []
+        self.follower.connection.set_trace_callback(statements.append)
+        try:
+            self.follower.apply([_posting("one", "2026-09-30", "A", "one")])
+        finally:
+            self.follower.connection.set_trace_callback(None)
+        whole = re.compile(r"COUNT\(\*\) FROM (customers|ledger|tag_state)\b(?! WHERE customer_id)")
+        self.assertTrue(statements)
+        self.assertEqual([s for s in statements if whole.search(s)], [])
+        recorded, counted = run_totals(self.follower.connection)
+        self.assertEqual(recorded, counted)
 
 
 class ReadOnlyWhileFollowing(unittest.TestCase):

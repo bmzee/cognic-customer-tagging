@@ -60,6 +60,20 @@ CUSTOMER_TABLES = ("customers", "customer_versions", "closures", "txn_registers"
                    "tag_state", "checkpoint_tags", "tag_history", "events_seen", "rejected_events", "late_events")
 
 
+# The totals every runs row records (customers, transactions in the ledger,
+# tags held), over the whole store or, with a customer id, one customer's share.
+_TOTALS = ("SELECT (SELECT COUNT(*) FROM customers{0}), (SELECT COUNT(*) FROM ledger{0}), "
+           "(SELECT COUNT(*) FROM tag_state WHERE {1}status = 'held')")
+
+
+def totals(connection, customer_id=None):
+    """(customers, transactions, tags held) in the store, or for one customer."""
+    if customer_id is None:
+        return tuple(connection.execute(_TOTALS.format("", "")).fetchone())
+    return tuple(connection.execute(_TOTALS.format(" WHERE customer_id = ?1", "customer_id = ?1 AND "),
+                                    (customer_id,)).fetchone())
+
+
 def beats(a, b):
     """Does image key a = (version, status, event_id) win over b?"""
     if a[0] != b[0]:
@@ -370,6 +384,7 @@ class Follower(object):
         if meta.get("allowed_lateness_days", str(lateness_days)) != str(lateness_days):
             profile.write_meta(self.connection, [("allowed_lateness_days", lateness_days)])
         self.as_of = parse_date(meta.get("as_of", ""))
+        self._touched = {}
 
     def close(self):
         if self.connection is not None:
@@ -392,6 +407,7 @@ class Follower(object):
         started = self.clock()
         connection = self.connection
         as_of_before = self.as_of
+        self._touched = {}
         connection.execute("BEGIN IMMEDIATE")
         try:
             dirty = OrderedDict()
@@ -402,9 +418,7 @@ class Follower(object):
             if feed is not None:
                 connection.execute("INSERT OR REPLACE INTO feed_checkpoints (feed, position, identity) VALUES (?, ?, ?)",
                                    (feed, str(position), identity or ""))
-            held = connection.execute("SELECT COUNT(*) FROM tag_state WHERE status = 'held'").fetchone()[0]
-            customers = connection.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
-            txns = connection.execute("SELECT COUNT(*) FROM ledger").fetchone()[0]
+            customers, txns, held = self._totals(as_of_before)
             connection.execute(
                 "INSERT INTO runs (kind, as_of, engine_version, taxonomy_version, taxonomy_hash, input_snapshot_hash, "
                 "customers, transactions, tags_held, notes, started_at, finished_at, events_read, events_applied, "
@@ -426,6 +440,31 @@ class Follower(object):
             self.as_of = parse_date(store_module.meta(connection).get("as_of", ""))
             raise
         return counts
+
+    def _totals(self, as_of_before):
+        """The store's totals at the end of this batch, for its runs row.
+
+        Counting whole tables on every batch grows with the store, so a batch
+        takes the previous run's totals and adds the change in each customer
+        it touched (measured before its first write and again now). A batch
+        that moved the as-of date pruned the ledger and re-evaluated every
+        customer, so it counts afresh, which is cheap beside the tick; so does
+        the first batch on a store with no runs row yet."""
+        connection = self.connection
+        previous = connection.execute(
+            "SELECT customers, transactions, tags_held FROM runs ORDER BY run_id DESC LIMIT 1").fetchone()
+        if previous is None or self.as_of != as_of_before:
+            return totals(connection)
+        result = list(previous)
+        for cid, before in self._touched.items():
+            for k, (now, then) in enumerate(zip(totals(connection, cid), before)):
+                result[k] += now - then
+        return tuple(result)
+
+    def _touch(self, cid):
+        """Note a customer's totals before this batch first changes it."""
+        if cid not in self._touched:
+            self._touched[cid] = totals(self.connection, cid)
 
     def _start(self):
         return profile.retention_start(self.as_of, self.taxonomy) if self.as_of else None
@@ -485,6 +524,7 @@ class Follower(object):
 
     def _forget(self, cid, day, dirty):
         connection = self.connection
+        self._touch(cid)
         for table in CUSTOMER_TABLES:
             connection.execute("DELETE FROM {} WHERE customer_id = ?".format(table), (cid,))
         connection.execute("INSERT OR IGNORE INTO opt_outs (customer_id, since) VALUES (?, ?)", (cid, _iso(day)))
@@ -533,6 +573,7 @@ class Follower(object):
     def _apply_event(self, event, dirty):
         connection = self.connection
         cid = event.customer_id
+        self._touch(cid)
         if event.type in ("transaction.posted", "transaction.corrected", "transaction.reversed"):
             if event.type == "transaction.reversed":
                 txn, txn_id = None, event.data["txn_id"]
