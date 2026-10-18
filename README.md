@@ -2,9 +2,14 @@
 
 A plugin for Cognic that tags customers from their transactions and balances, keeps a live profile per customer and explains every tag with the rule and the evidence that produced it. It is built and proven here on synthetic data, and installed into Cognic once Cognic's plugin hosting is ready.
 
-**Status:** the full build runs as a stack of draft pull requests, one per phase; `docs/STATUS.md` has one row per phase. Built so far:
+**Status:** built in phases 0 to 10 as a stack of draft pull requests, one per phase; `docs/STATUS.md` has one row per phase, and `docs/INTEGRATION.md` says how the plugin installs into Cognic once hosting lands. Built:
 - a taxonomy of 54 behaviour-based tags in 10 groups, with a version and a content hash (`taxonomy/tags.json`), plus a counterparty normalisation table and a merchant code table;
 - a deterministic rules engine (`engine/`) that evaluates tags from per-month feature buckets, with tag lifecycle at month-end checkpoints;
+- the builder and its SQLite profile store, rebuilt from a data copy or followed from a change feed, the followed store always equal to a rebuild; a customer's objection to profiling is a hard exclusion;
+- a read-only MCP tool server (`server/`) with six tools, and its reproducible image (built in CI only);
+- three skills, three commands and one reader-tier agent, instructions only;
+- 54 evaluation scenarios (`evals/`), a fairness kit on synthetic attributes and a drift report (`tools/`);
+- governance templates for the bank's compliance team (`docs/governance/`);
 - seeded synthetic data with expected tags for 62 labelled scenarios (`data/`), and tests (`tests/`);
 - one generated card per tag (`docs/tags/`);
 - research notes and the target design ([DESIGN.md](DESIGN.md), `docs/research/`).
@@ -49,7 +54,8 @@ A tag whose rule needs a missing field, such as an account opening date or a bal
 | `tools/validate_safety_file.py` | Standard-library validator for the safety file |
 | `.github/workflows/tests.yml` | CI: runs the tests on Python 3.9 to 3.13 |
 | `docs/tags/` | One generated card per tag, and an index |
-| `docs/STATUS.md`, `docs/OPEN-QUESTIONS.md` | Build status per phase, and the questions only Cognic's hosting can settle |
+| `docs/STATUS.md`, `docs/OPEN-QUESTIONS.md` | Build status per phase, and the questions only Cognic's hosting, the bank or an administrator can settle |
+| `docs/INTEGRATION.md` | How the plugin installs into Cognic: safety-file entries, the image, the data copy, running the builder, and what an administrator approves |
 | `DESIGN.md` | Target architecture: builder, profile store, reader tool server, skills and agent; why incremental equals batch; decisions from the research |
 | `docs/research/` | Research notes on the plan's eight topics, the MCP specification, the skill format and evaluation, each ending with what we adopt and reject, and `SOURCES.md` |
 
@@ -111,6 +117,22 @@ Print a canonical dump of the store; the same inputs and as-of date always give 
 
 ```bash
 python3 -m engine.build --export --store out/profile.db
+```
+
+Report tag-prevalence drift from one or more stores (read-only), or regenerate the example report:
+
+```bash
+python3 tools/drift.py report --store out/profile.db
+```
+
+```bash
+python3 tools/drift.py demo --out docs/drift-report.md
+```
+
+Run the fairness kit on synthetic customers and attributes (one chunk of 5,480 customers here; the full size runs in CI only, `.github/workflows/fairness.yml`):
+
+```bash
+python3 tools/fairness.py run --chunks 1
 ```
 
 Regenerate the synthetic data, which gives byte-identical files for the same seed:
