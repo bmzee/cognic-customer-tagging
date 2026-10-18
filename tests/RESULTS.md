@@ -47,4 +47,6 @@ What the suite covers:
 
 Phase 8 additions, measured the same way: the fairness kit's three scenarios at 5,480 synthetic customers each take 26 seconds of CPU; the drift example (a store followed month by month over seven runs) takes 3 seconds.
 
+Larger measurements run in CI only and are in `docs/STATUS.md`: the 200,000-customer, 5,000,000-transaction rebuild and continuous-update benchmark ("Benchmarks in CI"), and the full-size fairness run (phase 8). The numbers below are the local ones, on a shared machine.
+
 Measured on this machine (Python 3.14.6, under `nice`): tagging 2,000 synthetic customers (26,718 transactions) with lifecycle takes 4.6 seconds; rebuilding the profile store for 20,000 synthetic customers (246,600 transactions, through events) takes 66.7 seconds (63.0 s of CPU, 53 MB peak memory); on that store, continuous updates run at 163.6 events per second one event per transaction (p50 5.6 ms, p99 18.3 ms), 867 events per second in batches of 500, and a daily tick over all 20,000 customers takes 17.5 seconds.
