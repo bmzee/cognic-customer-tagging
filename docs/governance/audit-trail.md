@@ -6,7 +6,7 @@
 
 | Record | What it holds |
 | --- | --- |
-| `runs` | One row per rebuild and per follow batch: kind, as-of date, engine version, taxonomy version and content hash, a hash of the input (or the feed position), customers, transactions, tags held, events read, applied, duplicate, rejected and late, data notes (including the number of opted-out customers), start and finish time |
+| `runs` | One row per rebuild and per follow batch: kind, as-of date, engine version, taxonomy version and content hash, a hash of the input (or the feed position), customers, transactions and tags held (the store's totals after the run), events read, applied, duplicate, rejected and late, data notes (including the number of opted-out customers), start and finish time |
 | `run_tags`, `run_spread` | With every rebuild and every tick that moves the as-of date: per tag, how many customers hold it, are suppressed for it or cannot be evaluated for it; how many tags each customer holds. Counts only |
 | `schema_migrations` | Every store migration applied, with its checksum; a changed or unknown migration is refused |
 | `meta` | Store state, versions, taxonomy hash, as-of date and retention settings |
