@@ -1,6 +1,6 @@
 # Build status
 
-One row per phase of the full build. **The build is complete: phases 0 to 10 are done**, each on its own branch cut from the previous phase's branch, with a draft pull request whose base is that previous branch (#3 at the bottom to #13 at the top). Every check is green on every pull request. The maintainer reviews the stack from the bottom up and merges it; this build never merges. What only Cognic's hosting, the bank or its administrator can settle is in `OPEN-QUESTIONS.md` (Q1 to Q42), and how the plugin installs is in `INTEGRATION.md`.
+One row per phase of the full build. **The build is complete: phases 0 to 10 are done**, each on its own branch cut from the previous phase's branch, with a draft pull request whose base is that previous branch (#3 at the bottom to #13 at the top). A follow-up on top of phase 10, [#14](https://github.com/bmzee/cognic-customer-tagging/pull/14) (draft, base `phase/10-integration`, branch `perf/cheap-follow-batches`), keeps one-event follow batches cheap on large stores (see "One-event follow batches" below). Every check is green on every pull request. The maintainer reviews the stack from the bottom up and merges it; this build never merges. What only Cognic's hosting, the bank or its administrator can settle is in `OPEN-QUESTIONS.md` (Q1 to Q42), and how the plugin installs is in `INTEGRATION.md`.
 
 Test counts are from `python3 -m unittest discover -s tests -t .`: "with schema" means `COGNIC_SAFETY_SCHEMA` pointed at a local copy of the draft safety-file schema; CI never has the schema (see `OPEN-QUESTIONS.md`, Q1), so there the schema test is skipped.
 
@@ -32,4 +32,21 @@ Run with `.github/workflows/benchmark.yml` on a GitHub-hosted `ubuntu-latest` ru
 | Rebuild of 20,000 customers / 500,000 transactions | 151.8 s; store 626,487,296 bytes |
 | Long property run, incremental equals batch (200 short and 20 long seeds) | 9 tests OK in 743.3 s |
 
-Rebuild time grows about linearly with the data (10 times the transactions: 10.5 times the time). The one-event rate falls as the store grows, so a change feed should be read in batches; making single events cheap at this size is left open (Q27).
+Rebuild time grows about linearly with the data (10 times the transactions: 10.5 times the time). At phase 4 the one-event rate fell as the store grew, because every batch counted three whole tables for its `runs` row. The next section measures the change that removed those counts.
+
+### One-event follow batches
+
+Measured locally first, under `nice`, on `tools/bench.py` data. 300 one-event batches were applied with every SQL statement timed. At 2,000 customers the counts of `customers`, `ledger` and the held rows of `tag_state` took 1.01 ms of a 3.50 ms batch. At 10,000 customers they took 4.41 ms of 7.22 ms (61%). Nothing else grew with the store; the commit (about 1 ms) was the next largest cost. A batch now takes the previous run's totals and adds the change in each customer it touched. A batch that moves the as-of date counts afresh (`DESIGN.md`, "What each batch records"). Locally, on the 10,000-customer store, `tools/bench.py follow --events 1000` went from 117.1 to 329.2 events per second one event per batch (p50 7.86 to 2.39 ms).
+
+In CI, the same workflow was started on the base and on the change at the same time, on 2026-10-18, on GitHub-hosted `ubuntu-latest` runners, with the same data as above:
+
+| Measurement | Before: `phase/10-integration` at `1485e19` (run 39085171617) | After: `perf/cheap-follow-batches` at `83a0b3b` (run 39085168971) |
+| --- | --- | --- |
+| Continuous updates on the 200,000-customer store, one event per transaction (3,000 events) | 9.5 events/s; p50 104.23 ms; p99 124.47 ms | 276.7 events/s; p50 2.86 ms; p99 21.78 ms |
+| The same events in batches of 500 | 322.7 events/s | 380.9 events/s |
+| A daily tick (re-evaluates all 200,000 customers) | 517.8 s | 440.5 s |
+| Rebuild, 200,000 customers / 5,000,000 transactions (unchanged code; shows the runner's speed) | 1,849.6 s | 1,546.3 s |
+| Rebuild of 20,000 customers / 500,000 transactions | 172.5 s | 150.7 s |
+| Long property run (200 short and 20 long seeds) | 10 tests OK in 487.7 s | 13 tests OK in 426.1 s (every batch's `runs` row also checked) |
+
+One event per batch is 29 times faster: a 2.86 ms median at 200,000 customers, close to the 2.39 ms measured locally at 10,000, so the cost no longer grows with the store. The before runner was slower: its rebuild of unchanged code took 20% longer. That difference also explains the batches of 500 and the tick, which the change barely touches. The phase 4 figure above (8.6 events/s, p50 110.18 ms) is where Q27 started. The largest cost left in a batch is its commit, so batching still pays: batches of 500 run at about 380 events per second.
