@@ -341,7 +341,7 @@
   "servers": [
     {
       "id": "profiles",
-      "image": "registry.invalid/customer-tagging-profiles@sha256:1c04d97138409edfd80555ba322d8b10b80fddb13a1250a9dc2e1f86b0f571f5",
+      "image": "registry.invalid/customer-tagging-profiles@sha256:0ecb93c6f76aec496d7db388e0896fe74ea25d9b36fd5e7179377b89f333ccbc",
       "transport": "stdio",
       "command": "/app/profile-reader",
       "args": [
